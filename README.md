@@ -48,11 +48,13 @@ git push -u origin main
 
 ### Step 4 — Deploy v3 to Render
 
-1. Sign up at **render.com** (free).
-2. Click **New → Blueprint**, point it at your GitHub repo. Render reads `render.yaml` and proposes a service called `convergent-v3`. Click **Apply**.
-3. Open the new service. In **Environment**, set the secret:
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/speakingtrumpetskier-prog/ira-walkthroughs)
+
+Click the button above. Render walks through the rest:
+1. Sign in to Render (free account; first-time auth-with-GitHub takes one extra click).
+2. Render reads `render.yaml`, names the service `convergent-v3`, and asks for one secret:
    - `ANTHROPIC_API_KEY` = your Anthropic key
-4. Render builds and deploys. After ~3 min, your service URL appears (e.g. `https://convergent-v3.onrender.com`).
+3. Click **Apply**. Render builds and deploys (~3 min). The service URL appears at the top of the service page (e.g. `https://convergent-v3.onrender.com`).
 
 **Render free tier note:** the service sleeps after 15 minutes of inactivity. The first request after a sleep takes ~30 seconds to wake up. Subsequent requests are instant. Tell your viewer about the cold start so they don't think it's broken.
 

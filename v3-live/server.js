@@ -204,8 +204,52 @@ async function handleApi(req, res, pathname) {
       ok: true,
       keyAvailable: KEY_AVAILABLE,
       model: MODEL,
-      effort: EFFORT
+      effort: EFFORT,
+      keyLength: API_KEY ? API_KEY.length : 0,
+      nodeVersion: process.version
     });
+    return;
+  }
+
+  // Diagnostic: minimal Anthropic call. Surfaces network / auth / model
+  // problems with full detail in the response (and the server logs).
+  if (pathname === "/api/debug-claude") {
+    if (!KEY_AVAILABLE) {
+      sendJson(res, 500, { error: "ANTHROPIC_API_KEY not set" });
+      return;
+    }
+    const startedAt = Date.now();
+    try {
+      const resp = await client.messages.create({
+        model: MODEL,
+        max_tokens: 32,
+        output_config: { effort: EFFORT },
+        messages: [{ role: "user", content: "Say hi in 3 words." }]
+      });
+      const text = resp.content
+        .filter((b) => b.type === "text")
+        .map((b) => b.text)
+        .join("");
+      sendJson(res, 200, {
+        ok: true,
+        elapsedMs: Date.now() - startedAt,
+        text,
+        usage: resp.usage
+      });
+    } catch (e) {
+      console.error("/api/debug-claude error:", e);
+      console.error("  cause:", e.cause);
+      console.error("  status:", e.status);
+      console.error("  stack:", e.stack);
+      sendJson(res, 500, {
+        error: e.message || "unknown",
+        name: e.name,
+        status: e.status || null,
+        cause: e.cause ? String(e.cause) : null,
+        causeCode: e.cause && e.cause.code ? e.cause.code : null,
+        elapsedMs: Date.now() - startedAt
+      });
+    }
     return;
   }
 
@@ -247,7 +291,15 @@ async function handleApi(req, res, pathname) {
       });
     } catch (e) {
       console.error("/api/start error:", e);
-      sendJson(res, 500, { error: e.message || "Failed to start session" });
+      console.error("  cause:", e.cause);
+      console.error("  status:", e.status);
+      console.error("  stack:", e.stack);
+      sendJson(res, 500, {
+        error: e.message || "Failed to start session",
+        name: e.name,
+        cause: e.cause ? String(e.cause) : null,
+        causeCode: e.cause && e.cause.code ? e.cause.code : null
+      });
     }
     return;
   }

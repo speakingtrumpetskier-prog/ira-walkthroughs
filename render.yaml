@@ -1,0 +1,24 @@
+# Render blueprint for the v3 (live Claude) walkthrough.
+# When this file is in the repo root and the repo is connected to Render,
+# Render auto-provisions the service. Set ANTHROPIC_API_KEY manually in the
+# Render dashboard (sync: false flag below).
+services:
+  - type: web
+    name: convergent-v3
+    runtime: node
+    rootDir: v3-live
+    plan: free
+    buildCommand: npm install
+    startCommand: node server.js
+    healthCheckPath: /api/health
+    envVars:
+      - key: HOST
+        value: 0.0.0.0
+      - key: NODE_VERSION
+        value: 20
+      - key: MODEL
+        value: claude-opus-4-7
+      - key: EFFORT
+        value: low
+      - key: ANTHROPIC_API_KEY
+        sync: false

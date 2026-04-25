@@ -1,0 +1,12 @@
+{
+  "name": "convergent-beneficiary-walkthrough-v3",
+  "private": true,
+  "version": "0.3.0",
+  "description": "Live-Claude beneficiary walkthrough — chips + free-form input + behind-the-glass orchestrator",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.40.0"
+  }
+}

@@ -1,0 +1,15 @@
+node_modules/
+*.log
+
+# Never commit secrets
+.env
+.env.local
+v3-live/.env
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/
+.idea/

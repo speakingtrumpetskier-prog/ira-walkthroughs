@@ -4,7 +4,15 @@ const path = require("path");
 const { URL } = require("url");
 
 const Anthropic = require("@anthropic-ai/sdk").default;
-const { TOOL_DEFS, GATE_DEFS, executeTool } = require("./tools");
+const {
+  TOOL_DEFS,
+  GATE_DEFS,
+  executeTool,
+  getAvailableTools,
+  computePhase,
+  markEsignComplete,
+  markProviderConfirmed
+} = require("./tools");
 const { PERSONAS, buildCustomPersona, getChipsForSession } = require("./personas");
 
 /* ----------------------------------------------------------------------
@@ -61,11 +69,22 @@ function newSessionId(prefix) {
 async function runAgentTurn(session, userMessage) {
   const persona = session.persona;
 
-  // Append user message
-  session.messages.push({ role: "user", content: userMessage });
-
   const events = [];
   let assistantText = "";
+
+  // Synthetic-message handling — when the user submits an esign or upload UI,
+  // the frontend posts a "[Signed: ...]" / "[Submitted documents: ...]" message.
+  // The orchestrator inspects this BEFORE the message goes to Claude, so the
+  // session state reflects the action without requiring the agent to write
+  // system-managed fields. This is part of the cage: signature completion is
+  // not the agent's prerogative to assert.
+  if (typeof userMessage === "string" && userMessage.startsWith("[Signed:")) {
+    const esignEvents = markEsignComplete(session);
+    events.push(...esignEvents);
+  }
+
+  // Append user message AFTER any pre-processing
+  session.messages.push({ role: "user", content: userMessage });
 
   // Build cached system prompt (large stable prefix, then per-persona)
   const systemBlocks = [
@@ -81,12 +100,16 @@ async function runAgentTurn(session, userMessage) {
   ];
 
   for (let iteration = 0; iteration < 12; iteration += 1) {
+    // Per-state capability matrix — only tools available in the current phase
+    // are sent to Claude. Tools removed from the toolbelt cannot be invoked.
+    const availableTools = getAvailableTools(session);
+
     const response = await client.messages.create({
       model: MODEL,
       max_tokens: 2048,
       output_config: { effort: EFFORT },
       system: systemBlocks,
-      tools: TOOL_DEFS,
+      tools: availableTools,
       messages: session.messages
     });
 
@@ -134,7 +157,9 @@ async function runAgentTurn(session, userMessage) {
     pendingUI: session.pendingUI,
     chips: getChipsForSession(session, persona),
     completed: session.state.completed,
-    endState: session.state.endState
+    endState: session.state.endState,
+    phase: computePhase(session),
+    establishmentStatus: session.state.fields["inherited_ira_establishment_status"] || null
   };
 }
 
@@ -331,6 +356,32 @@ async function handleApi(req, res, pathname) {
     } catch (e) {
       console.error("/api/agent/chat error:", e);
       sendJson(res, 500, { error: e.message || "Chat failed" });
+    }
+    return;
+  }
+
+  // Provider confirmation simulator — Schema v1.27 lifecycle.
+  // For the three "established" end states, the case is initially marked
+  // pending_provider_confirmation when complete_session fires; this endpoint
+  // simulates the provider acknowledging receipt and flips the status to
+  // confirmed (in good order). In production this would be a callback from
+  // the provider's systems, not a button click.
+  if (pathname === "/api/agent/provider-confirm" && req.method === "POST") {
+    try {
+      const body = await readJsonBody(req);
+      const session = agentSessions.get(body.sessionId);
+      if (!session) return sendJson(res, 404, { error: "Session not found" });
+      const { ok, reason, events } = markProviderConfirmed(session);
+      if (!ok) return sendJson(res, 400, { error: reason });
+      sendJson(res, 200, {
+        sessionId: session.id,
+        events,
+        state: session.state,
+        establishmentStatus: session.state.fields["inherited_ira_establishment_status"]
+      });
+    } catch (e) {
+      console.error("/api/agent/provider-confirm error:", e);
+      sendJson(res, 500, { error: e.message || "Provider confirm failed" });
     }
     return;
   }

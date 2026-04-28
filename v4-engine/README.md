@@ -78,7 +78,12 @@ node server.js                # http://127.0.0.1:8792
 - The agent doesn't classify — it gathers and reports.
 - The engine is rules-based and replaceable — no LLM in the classification path.
 - The chatbot is architecturally isolated — separate session, no shared state.
-- The cage is enforced by code (tools, server-side validation), not by prompt.
+- **Gates clear deterministically** — the orchestrator evaluates each gate's clearing conditions after every state mutation; the agent has no `pass_gate` tool.
+- **Capability matrix is declarative** — the agent's toolbelt is filtered per session phase; tools not in the current phase are not even visible to Claude.
+- **Field registry is enforced** — `update_field` rejects unregistered paths and invalid enum values against the v1.5 canonical fields.
+- **Engine output is templated** — after `triage_engine` returns, the agent must call `present_template("engine_report", ...)`; free-form translation of engine results is forbidden.
+- **Provider-confirmation lifecycle (v1.27)** — the three "established" end states are marked `pending_provider_confirmation` until the provider acknowledges; the prototype simulates this with a button.
+- The cage is enforced by code (tools, server-side validation, capability matrix, gate predicates, field registry), not by prompt.
 - Subject vs Actor is preserved through the UI.
 - Track 3 keeps QST cases in-system.
 
@@ -87,5 +92,7 @@ node server.js                # http://127.0.0.1:8792
 - Tax rule logic in dialogue is illustrative product copy, not legal advice.
 - Pre-2020 deaths and post-deadline accounting are deferred per Gen 1 scope.
 - The chatbot is grounded in a curated brief, not a real KB. Production replaces this with retrieval.
-- The capability matrix is *behaviorally* implemented (some tools are situationally rejected); the matrix as a spec doc is a separate artifact.
+- The capability matrix lives in code (tools.js); the matrix as a spec doc is a separate artifact (see Handoff §8.1).
 - Templates are inline; production has a versioned library.
+- KBA validation is theatrical — the orchestrator accepts any user response. Real KBA against reference data is a Gen 2 concern.
+- Provider confirmation is button-driven; production uses an inbound API callback from the provider's systems.

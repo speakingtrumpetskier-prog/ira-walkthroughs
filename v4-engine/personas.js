@@ -35,10 +35,10 @@ Important context for THIS persona:
 ## Your conversational arc
 
 1. Greet Elena by name. Acknowledge loss briefly. Tell her Northstar shared the basics; you just need a quick identity check.
-2. Use \`request_kba\` to ask for the last 4 of her SSN. When she replies "5512", call \`update_field\` for verification.identity ("verified · KBA"), \`audit\`, \`pass_gate("identity")\`, \`pass_gate("death_cert")\` (already provider-verified), \`update_field\` for verification.death_cert ("verified · provider").
-3. Confirm her relationship is spouse (already seeded). Update beneficiary.classification = "spouse". \`pass_gate("edb_conversation")\` (no EDB conversation needed for spouse).
+2. Use \`request_kba\` to ask for the last 4 of her SSN. When she replies "5512", call \`update_field\` for verification.identity ("verified · KBA"), \`audit\`, \`update_field\` for verification.death_cert ("verified · provider"). Identity and death_cert gates auto-clear once these fields are set.
+3. Confirm her relationship is spouse (already seeded). Update beneficiary.classification = "spouse". edb_conversation gate auto-clears once classification = "spouse" is set (no EDB conversation needed for spouse).
 4. Tell Elena you're going to check what applies for her, then call \`triage_engine\` with the 5-field input package.
-5. Receive the engine's output. Translate it: Track 2 (asserted Life Expectancy, no A/B election) because Martin was past RBD. Also mention that as a spouse, she has a SEPARATE option to treat the inherited IRA as her own — outside the engine's A/B framework. Keep it plain. Call \`pass_gate("triage")\`.
+5. Receive the engine's output. Translate it: Track 2 (asserted Life Expectancy, no A/B election) because Martin was past RBD. Also mention that as a spouse, she has a SEPARATE option to treat the inherited IRA as her own — outside the engine's A/B framework. The triage gate auto-clears as soon as the engine returns. Immediately after the engine call, you MUST call \`present_template\` with template_id="engine_report" and the engine's outputs as variables (classification, applicable_rule, election_eligible, election_options, election_deadline, distribution_window_end, owner_rbd_status, owner_rbd_date, annual_rmd_required, beneficiary_name, election_track). Tell Elena: "Here's the report from the triage engine — take a moment to read it; I'll guide you through the next decision." Do NOT translate the engine output in free-form text — the report is the channel. Wait for her to acknowledge the report before continuing.
 6. Walk through the spouse decision:
    - **Continue as inherited IRA** with the asserted LE schedule, OR
    - **Treat as own** (spouse-only path)
@@ -48,7 +48,7 @@ Important context for THIS persona:
 9. YOD RMD disclosure: Martin was past RBD, Traditional IRA, so the YOD RMD applies. Use \`update_field\` for yod_rmd.applicable = "true", \`update_field\` for yod_rmd.disclosed = "true", \`audit\`. Tell her: Martin had an RMD obligation this year. Northstar will reconcile from the account history. The system disclosed the obligation; calculation and shortfall handling are out-of-system.
 10. Use \`request_esign\` for her election (acknowledgment of asserted rule + spouse path choice). Reasonable bullets summarizing what's signed. Fake envelope ID like env_a91f23b8.
 11. After signing, use \`present_template\` with template_id="wrap_track2_no_election" and variables {asserted_rule, beneficiary_name}.
-12. Wait for the user to acknowledge (they'll click acknowledge). Then \`pass_gate("election_resolution")\`, \`pass_gate("handoff_ready")\`, \`audit\`, \`update_field\` for session.status ("completed"), \`complete_session\` with end_state "inherited_ira_established_no_election_required".`,
+12. Wait for the user to acknowledge (they'll click acknowledge). Then \`audit\` "Session closed; package transmitted; pending provider confirmation per v1.27 lifecycle." Then \`complete_session\` with end_state "inherited_ira_established_no_election_required". The orchestrator marks the case pending_provider_confirmation; "in good order" status follows the provider acknowledgment (simulated via the Provider confirm button in the UI).`,
 
   initialState: () => ({
     fields: {
@@ -131,18 +131,18 @@ Important context for THIS persona:
 
 1. Greet Daniel. Briefly acknowledge loss. Explain that this session is on Milo's behalf — clarify the Subject vs Actor split: "We're doing this for Milo as the named beneficiary; you're the operator since he's a minor."
 2. Confirm relationship via \`update_field\` for actor.role = "surviving_parent". Note that authorized_representative authority is verified via documentation (birth cert + Daniel's ID). Use \`request_document_upload\` with title "Authorized representative authority" and files ["Milo_Everett_birth_certificate.pdf", "Daniel_Everett_government_id.pdf"].
-3. After the upload, audit the documents received. \`pass_gate("authorized_representative")\`. Then KBA challenge for Daniel: \`request_kba\` for last 4 of Daniel's SSN. Correct answer: **8841**.
-4. After KBA: \`update_field\` for verification.identity ("verified · KBA + auth-rep docs"), \`pass_gate("identity")\`, \`pass_gate("death_cert")\` (provider-verified), \`audit\`.
-5. Set classification: \`update_field\` for beneficiary.classification = "edb_minor_child". \`pass_gate("edb_conversation")\` (the EDB status is structural here — Milo is the owner's minor child).
+3. After the upload, \`update_field\` for auth_rep_docs.uploaded = "true", then \`audit\` the documents received. Authorized_representative gate auto-clears once actor.role and auth_rep_docs.uploaded are both set. Then KBA challenge for Daniel: \`request_kba\` for last 4 of Daniel's SSN. Correct answer: **8841**.
+4. After KBA: \`update_field\` for verification.identity ("verified · KBA + auth-rep docs"), \`update_field\` for verification.death_cert ("verified · provider"), \`audit\`. Identity and death_cert gates auto-clear.
+5. Set classification: \`update_field\` for beneficiary.classification = "edb_minor_child". Then \`update_field\` for edb.conversation_complete = "true" (the EDB status is structural here — Milo is the owner's minor child). The edb_conversation gate auto-clears.
 6. Tell Daniel you're going to check what applies for Milo, then call \`triage_engine\` with the 5-field input package.
-7. Receive the engine's output. Translate: Track 1 — A/B election available between Life Expectancy and 10-Year. Election deadline: [from engine]. Pre-RBD owner so no annual RMD requirement during the 10-year window. Phased rule: if LE elected, EDB ends at age 21 (2034-08-19), 10-year clock starts then. \`pass_gate("triage")\`.
+7. The engine returns; the triage gate auto-clears. Immediately call \`present_template\` with template_id="engine_report" and the engine's outputs as variables. Tell Daniel: "Here's the report from the triage engine — take a moment to read it. I'll explain the phased rule for Milo and walk you through the choice." Wait for him to acknowledge the report. Do NOT translate the engine output in free-form text — the report is the channel.
 8. Present the two A/B options:
    - **Life Expectancy**: small annual distributions based on Milo's life expectancy, until age 21. At 21, EDB ends and the 10-year clock starts. Full distribution by 2044-08-19 (Milo's 31st birthday).
    - **10-Year**: full distribution by 2036-12-31 (10 years after Jasmine's death). No annual distributions required during years 1-9. Daniel/Milo can pace as desired.
 9. Capture election via \`update_field\` for election.distribution_method (life_expectancy or 10_year).
 10. Use \`request_esign\` for the election. Bullets summarizing what's signed. Fake envelope ID.
 11. After signing, use \`present_template\` template_id="wrap_track1_election_made" with variables {election: <chosen>, deadline: <from engine>, beneficiary_name: "Milo"}.
-12. Wait for acknowledgment, then \`pass_gate("election_resolution")\`, \`pass_gate("handoff_ready")\`, \`update_field\` for session.status ("completed"), \`complete_session\` with end_state "inherited_ira_established_election_made".`,
+12. Wait for acknowledgment, then \`audit\` "Session closed; package transmitted; pending provider confirmation per v1.27 lifecycle." Then \`complete_session\` with end_state "inherited_ira_established_election_made". The orchestrator marks the case pending_provider_confirmation.`,
 
   initialState: () => ({
     fields: {
@@ -226,7 +226,7 @@ Important context for THIS persona:
 ## Your conversational arc
 
 1. Greet Marcus. Acknowledge Gloria's passing briefly. Tell him trust beneficiaries are handled through a structured trust path; you have a few qualification questions before any classification.
-2. Trustee identity: \`request_kba\` for last 4 of his SSN. Correct answer: **3392**. After: \`update_field\` for verification.identity ("trustee · KBA"), \`pass_gate("identity")\`, \`pass_gate("death_cert")\`, \`pass_gate("trust_trustee")\`, \`audit\`.
+2. Trustee identity: \`request_kba\` for last 4 of his SSN. Correct answer: **3392**. After: \`update_field\` for verification.identity ("trustee · KBA"), \`update_field\` for verification.death_cert ("verified · provider"), \`audit\`. Identity, death_cert, and trust_trustee gates auto-clear once these and trust.name are set.
 3. Capture trust info via \`update_field\` for: trust.name = "Dane Family Trust", actor.role = "trustee".
 4. Walk through the four self-cert prongs as a single conversational pass:
    - "Was the trust valid under state law as of Gloria's date of death?"
@@ -235,16 +235,16 @@ Important context for THIS persona:
    - "Has trust documentation been provided to Redwood by October 31, 2026 — or can be provided now?"
    For each "yes," call \`update_field\` for trust.q1/q2/q3/q4 and \`audit\`.
 5. Use \`request_document_upload\` with title "Trust documentation" and files ["Dane_Family_Trust_Agreement.pdf", "Trustee_Certification.pdf"]. After upload: \`audit\` "Trust documentation received — preserves October 31 deadline."
-6. Set classification: \`update_field\` for beneficiary.classification = "qualified_see_through_trust". Self-cert resolved as completed: \`update_field\` for selfcert.trust_status = "completed". \`pass_gate("selfcert")\`. \`pass_gate("edb_conversation")\` (no EDB conversation for QST per Track 3).
+6. Set classification: \`update_field\` for beneficiary.classification = "qualified_see_through_trust". Self-cert resolved as completed: \`update_field\` for selfcert.trust_status = "completed". The selfcert and edb_conversation gates auto-clear (Track 3 QST does not require an EDB conversation).
 7. Tell Marcus you're going to check what applies, then call \`triage_engine\`. Note: the engine will return election_eligible = "determined_by_trust_beneficiaries" because final rule depends on the underlying trust beneficiaries — that determination is made by the provider, not the system.
-8. Receive engine output. Translate plainly: the engine has confirmed Track 3 — the system established the case as a qualified see-through trust handoff. The applicable rule depends on the trust's underlying beneficiaries, which the provider will determine in coordination with you out-of-system. \`pass_gate("triage")\`.
+8. The engine returns and the triage gate auto-clears. Immediately call \`present_template\` with template_id="engine_report" and the engine's outputs as variables. Tell Marcus: "Here's the report from our triage engine. Notice that the rule and election eligibility are 'determined by trust beneficiaries' — that's expected for QST cases; Redwood will determine the applicable rule out-of-system. Let me show you the trustee responsibility disclosure next." Wait for him to acknowledge the report. Do NOT translate the engine output in free-form text — the report is the channel.
 9. Use \`present_template\` template_id="trustee_responsibility_disclosure_track3" with variables {trustee_name: "Marcus Chen", trust_name: "Dane Family Trust", ira_balance: "$883,250"}.
-10. Wait for acknowledgment.
+10. Wait for acknowledgment, then \`update_field\` for trustee_responsibility_disclosure.acknowledged = "true". The election_resolution gate auto-clears for Track 3.
 11. Record provider attention alert: \`update_field\` for provider_attention_alerts = "qst_selfcert_completed", \`audit\` "provider_attention_alerts updated: qst_selfcert_completed".
 12. Use \`request_esign\` for the trustee responsibility acknowledgment with reasonable bullets and fake envelope ID.
 13. After signing: \`update_field\` for case.reference = "DF-2025-0660-OPS", \`audit\` "Handoff package generated. Provider notified for out-of-system rule determination."
 14. Use \`present_template\` template_id="wrap_track3_qst_handoff" with variables {trust_name: "Dane Family Trust", case_ref: "DF-2025-0660-OPS"}.
-15. Wait for acknowledgment, then \`pass_gate("election_resolution")\`, \`pass_gate("handoff_ready")\`, \`update_field\` for session.status ("completed"), \`complete_session\` with end_state "inherited_ira_established_qst_handoff".`,
+15. Wait for acknowledgment, then \`audit\` "Session closed — Track 3 QST handoff complete." Call \`complete_session\` with end_state "inherited_ira_established_qst_handoff". (QST handoff has its own gating; v1.27 provider-confirmation lifecycle does not apply.)`,
 
   initialState: () => ({
     fields: {

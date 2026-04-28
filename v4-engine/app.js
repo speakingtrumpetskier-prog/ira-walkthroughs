@@ -18,9 +18,90 @@ const GATE_ORDER = [
   { id: "handoff_ready", label: "Handoff ready" }
 ];
 
-/* Rough categorization for the right-pane grouping */
-const SEEDED_KEY_PREFIXES = ["session.provider", "ira.", "owner.", "beneficiary.name", "beneficiary.dob", "beneficiary.age", "beneficiary.relationship", "beneficiary.type", "actor."];
-const COMPUTED_KEY_PREFIXES = ["engine.", "computed."];
+/* Schema section attribution — mirrors CANONICAL_FIELDS in tools.js.
+   Used to organize the right-pane field display by v1.5 schema section. */
+const FIELD_SECTIONS = {
+  "session.provider": "1A · Session Identity",
+  "session.status": "1B · Session Status",
+  "session.escalated": "5D · Escalation",
+  "session.escalation_reason": "5D · Escalation",
+  "session.esign_complete": "7 · E-Sign",
+  "ira.type": "2A · Account",
+  "ira.balance": "2C · Account",
+  "owner.name": "2A · Owner",
+  "owner.dob": "2A · Owner",
+  "owner.dod": "2A · Owner",
+  "beneficiary.name": "3A · Beneficiary Identity",
+  "beneficiary.name (Subject)": "3A · Beneficiary Identity",
+  "beneficiary.dob": "3A · Beneficiary Identity",
+  "beneficiary.age": "3A · Beneficiary Identity",
+  "beneficiary.relationship": "4A · Classification",
+  "beneficiary.type": "4A · Classification",
+  "beneficiary.classification": "4D · Engine Input",
+  "verification.identity": "3B · Verification",
+  "verification.death_cert": "3B · Verification",
+  "actor.name (Operator, 3D)": "3D · Session Actor",
+  "actor.role": "3D · Session Actor",
+  "actor.relationship_to_subject": "3D · Session Actor",
+  "auth_rep_docs.uploaded": "4F · Authorized Rep",
+  "selfcert.trust_status": "4B · Self-cert",
+  "trust.q1": "4B · Self-cert",
+  "trust.q2": "4B · Self-cert",
+  "trust.q3": "4B · Self-cert",
+  "trust.q4": "4B · Self-cert",
+  "trust.name": "4G · Trust Identity",
+  "edb.conversation_complete": "5D · EDB Conversation",
+  "election.distribution_method": "6A · Election",
+  "election.declined": "6A · Election",
+  "spouse.path_chosen": "6A · Election",
+  "trustee_responsibility_disclosure.acknowledged": "6C-ii · Trustee Disclosure",
+  "yod_rmd.applicable": "6E · YOD RMD",
+  "yod_rmd.disclosed": "6E · YOD RMD",
+  "provider_attention_alerts": "10B · Provider Alerts",
+  "case.reference": "10D · Handoff",
+  "engine.applicable_rule_set": "4D · Engine Output",
+  "engine.election_eligible": "4D · Engine Output",
+  "engine.election_track": "4D · Engine Output",
+  "engine.election_options": "4D · Engine Output",
+  "engine.election_deadline": "4D · Engine Output",
+  "engine.asserted_rule": "4D · Engine Output",
+  "engine.owner_rbd_status": "2B · Computed RBD",
+  "engine.owner_rbd_date": "2B · Computed RBD",
+  "engine.owner_rmd_attainment_year": "2B · Computed RBD",
+  "engine.distribution_window_end": "4D · Engine Output",
+  "engine.annual_rmd_required": "4D · Engine Output",
+  "inherited_ira_establishment_status": "5B · Establishment Status (v1.27)",
+  "inherited_ira_provider_confirmation_initiated_at": "5B · Establishment Status (v1.27)",
+  "inherited_ira_provider_confirmation_confirmed_at": "5B · Establishment Status (v1.27)"
+};
+
+const SECTION_ORDER = [
+  "1A · Session Identity",
+  "1B · Session Status",
+  "2A · Owner",
+  "2A · Account",
+  "2C · Account",
+  "2B · Computed RBD",
+  "3A · Beneficiary Identity",
+  "3B · Verification",
+  "3D · Session Actor",
+  "4A · Classification",
+  "4B · Self-cert",
+  "4D · Engine Input",
+  "4D · Engine Output",
+  "4F · Authorized Rep",
+  "4G · Trust Identity",
+  "5B · Establishment Status (v1.27)",
+  "5D · EDB Conversation",
+  "5D · Escalation",
+  "6A · Election",
+  "6C-ii · Trustee Disclosure",
+  "6E · YOD RMD",
+  "7 · E-Sign",
+  "10B · Provider Alerts",
+  "10D · Handoff"
+];
+
 const ENGINE_KEY_PREFIXES = ["engine."];
 
 const state = {
@@ -251,6 +332,28 @@ async function ackTemplate() {
   const ui = state.pendingUI;
   if (!ui || ui.type !== "template") return;
   await sendUserMessage(`[Acknowledged: ${ui.title}]`);
+}
+
+async function confirmProviderEstablishment() {
+  if (!state.sessionId) return;
+  try {
+    const r = await fetch("/api/agent/provider-confirm", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionId: state.sessionId })
+    });
+    const data = await r.json();
+    if (data.events) {
+      for (const ev of data.events) {
+        if (ev.type === "state_update") state.fields[ev.path] = ev.value;
+        if (ev.type === "audit_add") state.audit.unshift({ time: ev.time, text: ev.text });
+      }
+    }
+    render();
+  } catch (e) {
+    state.apiError = e.message;
+    render();
+  }
 }
 
 async function openChatbot() {
@@ -659,29 +762,61 @@ function renderActions() {
   }
 }
 
-/* Right pane sections */
+/* Right pane sections — organized by v1.5 schema section */
 function renderOrchSections() {
   const el = document.getElementById("orchSections");
   if (!el) return;
 
-  const seeded = {};
-  const collected = {};
-  const computed = {};
-  const engine = {};
+  // Bucket fields by schema section
+  const bySection = {};
+  const unsectioned = {};
   for (const [k, v] of Object.entries(state.fields)) {
-    if (ENGINE_KEY_PREFIXES.some((p) => k.startsWith(p))) engine[k] = v;
-    else if (SEEDED_KEY_PREFIXES.some((p) => k.startsWith(p))) seeded[k] = v;
-    else if (COMPUTED_KEY_PREFIXES.some((p) => k.startsWith(p))) computed[k] = v;
-    else collected[k] = v;
+    const sec = FIELD_SECTIONS[k];
+    if (sec) {
+      if (!bySection[sec]) bySection[sec] = {};
+      bySection[sec][k] = v;
+    } else {
+      unsectioned[k] = v;
+    }
   }
 
+  // Render in canonical section order
+  const sectionGroups = SECTION_ORDER
+    .filter((sec) => bySection[sec])
+    .map((sec) => renderFieldGroup(sec, bySection[sec], sec.includes("Engine Output") || sec.includes("Computed RBD") ? "engine" : ""))
+    .join("");
+
+  const unsectionedHtml = Object.keys(unsectioned).length
+    ? renderFieldGroup("(unregistered — would be rejected in production)", unsectioned, "")
+    : "";
+
   el.innerHTML = `
-    ${renderFieldGroup("Provider-seeded", seeded, "")}
-    ${renderFieldGroup("Beneficiary-collected (proposed by agent → orchestrator validates)", collected, "")}
+    ${renderEstablishmentBanner()}
+    ${sectionGroups}
+    ${unsectionedHtml}
     ${renderEngineSection()}
-    ${renderFieldGroup("Engine outputs", engine, "engine")}
     ${renderGatesSection()}
     ${renderAuditSection()}
+  `;
+}
+
+function renderEstablishmentBanner() {
+  const status = state.fields["inherited_ira_establishment_status"];
+  if (!status) return "";
+  const label = {
+    pending_provider_confirmation: "Awaiting provider confirmation (v1.27)",
+    confirmed: "In good order — provider confirmed",
+    pending_provider_confirmation_fallback_applied: "Confirmation timeout — fallback applied"
+  }[status] || status;
+  const cls = status === "confirmed" ? "establishment-confirmed" : "establishment-pending";
+  return `
+    <div class="orch-section ${cls}">
+      <h4 class="orch-section-title">Establishment lifecycle (Schema 5B / v1.27)</h4>
+      <div class="state-row">
+        <span class="state-key">inherited_ira_establishment_status</span>
+        <span class="state-val">${escapeHtml(label)}</span>
+      </div>
+    </div>
   `;
 }
 
@@ -859,14 +994,30 @@ function renderChatbotPanel() {
    ---------------------------------------------------------------------- */
 function renderOutroOverlay() {
   const p = state.persona;
+  const establishmentStatus = state.fields["inherited_ira_establishment_status"];
+  const isPending = establishmentStatus === "pending_provider_confirmation";
+  const isConfirmed = establishmentStatus === "confirmed";
+
   const rows = [
     ["Persona", p ? p.name : ""],
     ["Provider", p ? p.provider : ""],
     ["End state", state.outroOutcome || ""],
+    ["Establishment status", establishmentStatus || "n/a"],
     ["Audit entries", String(state.audit.length)],
     ["Captured fields", String(Object.keys(state.fields).length)],
     ["Engine called", state.engineOutput ? "Yes" : "No"]
   ];
+
+  const lifecycleNote = establishmentStatus
+    ? `<div class="outro-lifecycle ${isPending ? "pending" : (isConfirmed ? "confirmed" : "")}">
+         ${isPending
+           ? `<strong>Pending provider confirmation (Schema v1.27).</strong> The handoff package has been transmitted; "in good order" status awaits the provider's acknowledgment. In production this is a callback from the provider's systems; for the prototype, click below to simulate.`
+           : isConfirmed
+             ? `<strong>In good order.</strong> The provider has acknowledged the handoff package. The case is now formally complete per Schema v1.27.`
+             : ""}
+       </div>`
+    : "";
+
   return `
     <div class="outro-overlay">
       <div class="outro-card">
@@ -881,7 +1032,9 @@ function renderOutroOverlay() {
             </div>
           `).join("")}
         </div>
+        ${lifecycleNote}
         <div class="outro-actions">
+          ${isPending ? `<button class="btn btn-primary" data-action="provider-confirm">Simulate provider confirmation</button>` : ""}
           <button class="btn btn-ghost" data-action="go-intro">Back to intro</button>
           <button class="btn btn-primary" data-action="go-picker">Walk through another →</button>
         </div>
@@ -910,6 +1063,7 @@ document.addEventListener("click", (e) => {
 
   if (action === "go-intro") { state.scene = "intro"; state.outroOutcome = null; state.pendingUI = null; render(); return; }
   if (action === "go-picker") { state.scene = "picker"; state.outroOutcome = null; state.pendingUI = null; render(); return; }
+  if (action === "provider-confirm") { confirmProviderEstablishment(); return; }
   if (action === "open-custom") { state.scene = "custom"; render(); return; }
   if (action === "run-custom") {
     const spec = {

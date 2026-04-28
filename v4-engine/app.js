@@ -71,13 +71,142 @@ const FIELD_SECTIONS = {
   "engine.distribution_window_end": "4D · Engine Output",
   "engine.annual_rmd_required": "4D · Engine Output",
   "inherited_ira_establishment_status": "5B · Establishment Status (v1.27)",
+  "inherited_ira_establishment_status_pending_at": "5B · Establishment Status (v1.27)",
+  "inherited_ira_establishment_status_confirmed_at": "5B · Establishment Status (v1.27)",
+  "inherited_ira_establishment_status_rejected_at": "5B · Establishment Status (v1.27)",
+  "inherited_ira_establishment_status_fallback_applied_at": "5B · Establishment Status (v1.27)",
+  "inherited_ira_establishment_status_reason": "5B · Establishment Status (v1.27)",
   "inherited_ira_provider_confirmation_initiated_at": "5B · Establishment Status (v1.27)",
-  "inherited_ira_provider_confirmation_confirmed_at": "5B · Establishment Status (v1.27)"
+  "inherited_ira_provider_confirmation_confirmed_at": "5B · Establishment Status (v1.27)",
+  "session_end_state": "5B · Session End State",
+  "session_end_state_in_good_order": "5B · Session End State",
+
+  // Section 1B/C — extended
+  "unresponsive_flagged_at": "1B · Unresponsive",
+  "unresponsive_ops_notified": "1B · Unresponsive",
+  "expiry_deadline": "1C · Expiry",
+  "expiry_deadline_overridden": "1C · Expiry",
+
+  // Section 4F/G — extended
+  "representative_role_type": "4F · Authorized Rep",
+  "authorized_representative_doc_type": "4F · Authorized Rep",
+  "authorized_representative_doc_status": "4F · Authorized Rep",
+  "trust_date": "4G · Trust Identity",
+  "trustee_type": "4G · Trust Identity",
+  "corporate_trustee_entity_name": "4G · Trust Identity",
+  "trust_provider_notified": "4G · Trust Identity",
+  "trust_provider_notified_at": "4G · Trust Identity",
+
+  // Section 5B — branch / fast-lane
+  "branch_indicated": "5B · Branch State",
+  "branch_confirmed": "5B · Branch State",
+  "branch_locked": "5B · Branch State",
+
+  // Section 5D — suspension / escalation
+  "current_suspension_reason": "5D · Suspension",
+  "ops_escalation_active": "5D · Escalation",
+  "ops_escalation_reason": "5D · Escalation",
+
+  // Section 6A/B — election extended
+  "election_status": "6B · Election Status",
+  "deferral_deadline_acknowledged": "6B · Election Status",
+
+  // Section 6C-i — distribution requirements
+  "distribution_requirements_presented": "6C-i · Distribution Reqs",
+  "distribution_requirements_acknowledged": "6C-i · Distribution Reqs",
+  "applicable_rule_communicated": "6C-i · Distribution Reqs",
+  "separate_accounting_applicable": "6C-i · Separate Accounting",
+  "separate_accounting_deadline": "6C-i · Separate Accounting",
+  "separate_accounting_requirement_acknowledged": "6C-i · Separate Accounting",
+
+  // Section 6C-ii — trustee responsibility (canonical-name variants)
+  "trustee_responsibility_disclosure_applicable": "6C-ii · Trustee Disclosure",
+  "trustee_responsibility_disclosure_presented": "6C-ii · Trustee Disclosure",
+  "trustee_responsibility_disclosure_acknowledged": "6C-ii · Trustee Disclosure",
+  "trustee_responsibility_disclosure_acknowledged_at": "6C-ii · Trustee Disclosure",
+
+  // Section 6D — withdrawal decision
+  "withdrawal_request_decision_applicable": "6D · Withdrawal Decision",
+  "withdrawal_request_presented": "6D · Withdrawal Decision",
+  "withdrawal_request_decision": "6D · Withdrawal Decision",
+
+  // Section 6E — YOD RMD canonical cluster (v1.12)
+  "yod_rmd_disclosure_applicable": "6E · YOD RMD",
+  "yod_rmd_disclosure_presented": "6E · YOD RMD",
+  "yod_rmd_disclosure_presented_at": "6E · YOD RMD",
+  "yod_rmd_disclosure_content_ref": "6E · YOD RMD",
+  "yod_rmd_disclosure_acknowledged": "6E · YOD RMD",
+  "yod_rmd_disclosure_acknowledged_at": "6E · YOD RMD",
+
+  // Section 6E — existing IRA instruction lifecycle (v1.27)
+  "existing_ira_instruction_status": "6E · Existing IRA Instruction (v1.27)",
+  "existing_ira_instruction_status_pending_at": "6E · Existing IRA Instruction (v1.27)",
+  "existing_ira_instruction_status_confirmed_at": "6E · Existing IRA Instruction (v1.27)",
+  "existing_ira_instruction_status_fallback_applied_at": "6E · Existing IRA Instruction (v1.27)",
+
+  // Section 7 — e-sign
+  "esign_all_complete": "7 · E-Sign",
+  "esign_last_completed_at": "7 · E-Sign",
+
+  // Section 9 — Withdrawal Request Detail
+  "withdrawal_request_type": "9A · Withdrawal Identity",
+  "withdrawal_request_id": "9A · Withdrawal Identity",
+  "withdrawal_request_initiated_at": "9A · Withdrawal Identity",
+  "withdrawal_path": "9A · Withdrawal Identity",
+  "lumpsum_instruction": "9B · Lump Sum",
+  "lumpsum_instruction_confirmed": "9B · Lump Sum",
+  "onetime_amount_type": "9C · One-Time",
+  "onetime_amount": "9C · One-Time",
+  "onetime_amount_percentage": "9C · One-Time",
+  "onetime_amount_confirmed": "9C · One-Time",
+  "onetime_timing_preference": "9C · One-Time",
+  "onetime_timing_preference_detail": "9C · One-Time",
+  "standing_distribution_basis": "9D · Standing",
+  "standing_fixed_amount": "9D · Standing",
+  "standing_fixed_percentage": "9D · Standing",
+  "standing_frequency": "9D · Standing",
+  "standing_start_date": "9D · Standing",
+  "standing_instruction_confirmed": "9D · Standing",
+  "federal_withholding_election": "9E · Withholding",
+  "federal_withholding_percentage": "9E · Withholding",
+  "state_withholding_applicable": "9E · Withholding",
+  "state_withholding_election": "9E · Withholding",
+  "state_withholding_percentage": "9E · Withholding",
+  "withdrawal_tax_disclosure_acknowledged": "9E · Withholding",
+  "withholding_election_confirmed": "9E · Withholding",
+  "withdrawal_esign_completed": "9F · Withdrawal Handoff",
+  "withdrawal_instruction_handoff_included": "9F · Withdrawal Handoff",
+  "custodian_notification_sent": "9F · Withdrawal Handoff",
+
+  // Section 10A — Handoff Package
+  "handoff_package_id": "10A · Handoff Package",
+  "handoff_package_type": "10A · Handoff Package",
+  "handoff_package_generated": "10A · Handoff Package",
+  "handoff_package_generated_at": "10A · Handoff Package",
+  "handoff_package_transmitted": "10A · Handoff Package",
+  "handoff_package_transmitted_at": "10A · Handoff Package",
+  "handoff_package_acknowledged": "10A · Handoff Package",
+  "handoff_package_acknowledged_at": "10A · Handoff Package",
+
+  // Section 10C — Outstanding Items
+  "outstanding_items_exist": "10C · Outstanding Items",
+  "outstanding_election_deferred": "10C · Outstanding Items",
+  "outstanding_authorized_representative_docs": "10C · Outstanding Items",
+  "outstanding_inherited_ira_establishment_confirmation": "10C · Outstanding Items",
+  "outstanding_existing_ira_instruction_confirmation": "10C · Outstanding Items",
+
+  // Section 10E — Closure
+  "session_formally_closed": "10E · Session Closure",
+  "session_formally_closed_at": "10E · Session Closure",
+  "session_closure_initiated_by": "10E · Session Closure",
+  "provider_record_of_authority_confirmed": "10E · Session Closure"
 };
 
 const SECTION_ORDER = [
   "1A · Session Identity",
   "1B · Session Status",
+  "1B · Unresponsive",
+  "1C · Expiry",
   "2A · Owner",
   "2A · Account",
   "2C · Account",
@@ -91,15 +220,32 @@ const SECTION_ORDER = [
   "4D · Engine Output",
   "4F · Authorized Rep",
   "4G · Trust Identity",
+  "5B · Branch State",
+  "5B · Session End State",
   "5B · Establishment Status (v1.27)",
   "5D · EDB Conversation",
+  "5D · Suspension",
   "5D · Escalation",
   "6A · Election",
+  "6B · Election Status",
+  "6C-i · Distribution Reqs",
+  "6C-i · Separate Accounting",
   "6C-ii · Trustee Disclosure",
+  "6D · Withdrawal Decision",
   "6E · YOD RMD",
+  "6E · Existing IRA Instruction (v1.27)",
   "7 · E-Sign",
+  "9A · Withdrawal Identity",
+  "9B · Lump Sum",
+  "9C · One-Time",
+  "9D · Standing",
+  "9E · Withholding",
+  "9F · Withdrawal Handoff",
+  "10A · Handoff Package",
   "10B · Provider Alerts",
-  "10D · Handoff"
+  "10C · Outstanding Items",
+  "10D · Handoff",
+  "10E · Session Closure"
 ];
 
 const ENGINE_KEY_PREFIXES = ["engine."];
@@ -148,7 +294,14 @@ function defaultCustomSpec() {
     ownerDod: "2025-08-12",
     relationship: "child",
     isMinor: false,
-    actorName: ""
+    actorName: "",
+    explicitClassification: "",
+    isDisabled: false,
+    isChronicallyIll: false,
+    isTrustBeneficiary: false,
+    isEntity: false,
+    enableWithdrawalFlow: false,
+    withdrawalType: "one_time"
   };
 }
 
@@ -228,9 +381,19 @@ function applyAgentResult(result) {
         });
       } else if (ev.type === "suggest_chatbot") {
         state.chatbotNudge = ev.topic;
+      } else if (ev.type === "alert_appended") {
+        if (!state.providerAttentionAlerts) state.providerAttentionAlerts = [];
+        if (ev.alert) state.providerAttentionAlerts.push(ev.alert);
+      } else if (ev.type === "handoff_package_generated") {
+        // package_id flows through state_update events; full package fetched on demand
       }
     }
   }
+
+  if (Array.isArray(result.providerAttentionAlerts) && result.providerAttentionAlerts.length) {
+    state.providerAttentionAlerts = result.providerAttentionAlerts.slice();
+  }
+  if (result.handoffPackage) state.handoffPackage = result.handoffPackage;
 
   state.pendingChips = result.chips || [];
   state.pendingUI = result.pendingUI || null;
@@ -260,6 +423,9 @@ async function startPersona(personaId, customSpec) {
   state.gates = {};
   state.audit = [];
   state.pendingUI = null;
+  state.providerAttentionAlerts = [];
+  state.handoffPackage = null;
+  state.handoffPackageOpen = false;
   state.pendingChips = [];
   state.outroOutcome = null;
   state.apiError = null;
@@ -349,11 +515,50 @@ async function confirmProviderEstablishment() {
         if (ev.type === "audit_add") state.audit.unshift({ time: ev.time, text: ev.text });
       }
     }
+    if (Array.isArray(data.providerAttentionAlerts)) state.providerAttentionAlerts = data.providerAttentionAlerts.slice();
     render();
   } catch (e) {
     state.apiError = e.message;
     render();
   }
+}
+
+async function simulateProviderTimeout() {
+  if (!state.sessionId) return;
+  try {
+    const r = await fetch("/api/agent/simulate-timeout", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionId: state.sessionId })
+    });
+    const data = await r.json();
+    if (data.events) {
+      for (const ev of data.events) {
+        if (ev.type === "state_update") state.fields[ev.path] = ev.value;
+        if (ev.type === "audit_add") state.audit.unshift({ time: ev.time, text: ev.text });
+      }
+    }
+    if (Array.isArray(data.providerAttentionAlerts)) state.providerAttentionAlerts = data.providerAttentionAlerts.slice();
+    render();
+  } catch (e) {
+    state.apiError = e.message;
+    render();
+  }
+}
+
+async function viewHandoffPackage() {
+  if (!state.sessionId) return;
+  state.handoffPackageOpen = true;
+  if (!state.handoffPackage) {
+    try {
+      const r = await fetch(`/api/agent/handoff-package?sessionId=${encodeURIComponent(state.sessionId)}`);
+      const data = await r.json();
+      if (data.handoffPackage) state.handoffPackage = data.handoffPackage;
+    } catch (e) {
+      state.apiError = e.message;
+    }
+  }
+  render();
 }
 
 async function openChatbot() {
@@ -577,6 +782,69 @@ function renderCustomBuilder() {
             <input id="cb-actor" value="${escapeHtml(c.actorName || "")}" />
           </div>
         </div>
+
+        <h3 style="margin-top: 24px;">Edge-case toggles (optional)</h3>
+        <p>Override the inferred classification or force specific paths. Useful for stress-testing the engine on cases the inference logic doesn't naturally produce.</p>
+        <div class="custom-grid">
+          <div class="custom-field">
+            <label>Explicit classification override (engine input)</label>
+            <select id="cb-explicit">
+              <option value="" ${c.explicitClassification === "" ? "selected" : ""}>(none — infer from inputs)</option>
+              <option value="spouse" ${c.explicitClassification === "spouse" ? "selected" : ""}>spouse</option>
+              <option value="edb_minor_child" ${c.explicitClassification === "edb_minor_child" ? "selected" : ""}>edb_minor_child</option>
+              <option value="edb_age_gap" ${c.explicitClassification === "edb_age_gap" ? "selected" : ""}>edb_age_gap</option>
+              <option value="edb_disabled" ${c.explicitClassification === "edb_disabled" ? "selected" : ""}>edb_disabled</option>
+              <option value="edb_chronic_illness" ${c.explicitClassification === "edb_chronic_illness" ? "selected" : ""}>edb_chronic_illness</option>
+              <option value="non_edb_person" ${c.explicitClassification === "non_edb_person" ? "selected" : ""}>non_edb_person</option>
+              <option value="non_edb_nonperson" ${c.explicitClassification === "non_edb_nonperson" ? "selected" : ""}>non_edb_nonperson</option>
+              <option value="qualified_see_through_trust" ${c.explicitClassification === "qualified_see_through_trust" ? "selected" : ""}>qualified_see_through_trust</option>
+            </select>
+          </div>
+          <div class="custom-field">
+            <label class="custom-checkbox">
+              <input type="checkbox" id="cb-disabled" ${c.isDisabled ? "checked" : ""} />
+              Beneficiary qualifies as disabled (EDB)
+            </label>
+          </div>
+          <div class="custom-field">
+            <label class="custom-checkbox">
+              <input type="checkbox" id="cb-chronic" ${c.isChronicallyIll ? "checked" : ""} />
+              Beneficiary qualifies as chronically ill (EDB)
+            </label>
+          </div>
+          <div class="custom-field">
+            <label class="custom-checkbox">
+              <input type="checkbox" id="cb-trust" ${c.isTrustBeneficiary ? "checked" : ""} />
+              Trust beneficiary (Track 3 QST)
+            </label>
+          </div>
+          <div class="custom-field">
+            <label class="custom-checkbox">
+              <input type="checkbox" id="cb-entity" ${c.isEntity ? "checked" : ""} />
+              Entity (estate / charity / corporation — non-EDB non-person)
+            </label>
+          </div>
+        </div>
+
+        <h3 style="margin-top: 24px;">Withdrawal flow (Section 9)</h3>
+        <p>Demonstrate the withdrawal request flow at the end of the session. Useful for testing Section 9 — withdrawal request detail.</p>
+        <div class="custom-grid">
+          <div class="custom-field">
+            <label class="custom-checkbox">
+              <input type="checkbox" id="cb-withdraw" ${c.enableWithdrawalFlow ? "checked" : ""} />
+              Demo withdrawal flow after election
+            </label>
+          </div>
+          <div class="custom-field">
+            <label>Withdrawal type (when enabled)</label>
+            <select id="cb-wdtype">
+              <option value="lump_sum" ${c.withdrawalType === "lump_sum" ? "selected" : ""}>Lump sum (full account)</option>
+              <option value="one_time" ${c.withdrawalType === "one_time" ? "selected" : ""}>One-time (specific amount)</option>
+              <option value="standing" ${c.withdrawalType === "standing" ? "selected" : ""}>Standing (recurring)</option>
+            </select>
+          </div>
+        </div>
+
         <div class="custom-actions">
           <button class="btn btn-ghost" data-action="go-picker">Cancel</button>
           <button class="btn btn-primary" data-action="run-custom">Run with these inputs →</button>
@@ -792,11 +1060,34 @@ function renderOrchSections() {
 
   el.innerHTML = `
     ${renderEstablishmentBanner()}
+    ${renderProviderAttentionAlerts()}
     ${sectionGroups}
     ${unsectionedHtml}
     ${renderEngineSection()}
     ${renderGatesSection()}
     ${renderAuditSection()}
+  `;
+}
+
+function renderProviderAttentionAlerts() {
+  const alerts = state.providerAttentionAlerts || [];
+  if (!alerts.length) return "";
+  return `
+    <div class="orch-section provider-alerts-section">
+      <h4 class="orch-section-title">Provider Attention Alerts (Section 10B · typed array)</h4>
+      <div class="alert-list">
+        ${alerts.map((a) => `
+          <div class="alert-item alert-${escapeHtml(a.alert_priority || "informational")}">
+            <div class="alert-header">
+              <span class="alert-type">${escapeHtml(a.alert_type)}</span>
+              <span class="alert-priority">${escapeHtml(a.alert_priority || "")}</span>
+            </div>
+            <div class="alert-message">${escapeHtml(a.alert_message || "")}</div>
+            <div class="alert-meta">${escapeHtml(a.alert_id || "")} · ${escapeHtml((a.alert_raised_at || "").slice(0, 19))}</div>
+          </div>
+        `).join("")}
+      </div>
+    </div>
   `;
 }
 
@@ -1018,12 +1309,15 @@ function renderOutroOverlay() {
        </div>`
     : "";
 
+  const isFallback = establishmentStatus === "pending_provider_confirmation_fallback_applied";
+  const alertCount = (state.providerAttentionAlerts || []).length;
+
   return `
     <div class="outro-overlay">
       <div class="outro-card">
         <div class="outro-kicker">Walkthrough complete</div>
         <h2>What the provider receives</h2>
-        <p>The handoff package — verifications, classification, election, documents, e-signatures, and full audit log — is transmitted to ${p ? escapeHtml(p.provider) : "the provider"}. The provider remains the record of authority.</p>
+        <p>The handoff package — verifications, classification, election, documents, e-signatures, withdrawal instructions, provider attention alerts, and full audit log — is transmitted to ${p ? escapeHtml(p.provider) : "the provider"}. The provider remains the record of authority.</p>
         <div class="outro-summary">
           ${rows.map(([k, v]) => `
             <div class="outro-summary-row">
@@ -1031,14 +1325,35 @@ function renderOutroOverlay() {
               <span class="outro-summary-val">${escapeHtml(v)}</span>
             </div>
           `).join("")}
+          ${alertCount ? `<div class="outro-summary-row"><span class="outro-summary-key">Provider alerts</span><span class="outro-summary-val">${alertCount}</span></div>` : ""}
         </div>
         ${lifecycleNote}
+        ${isFallback ? `<div class="outro-lifecycle fallback"><strong>Confirmation timeout fallback applied (Schema v1.27).</strong> Grace period elapsed without provider acknowledgment. Corrective package re-pushed; an <code>establishment_confirmation_timeout</code> alert has been raised on the provider attention channel. The case awaits manual resolution by provider ops.</div>` : ""}
         <div class="outro-actions">
+          <button class="btn btn-ghost" data-action="view-handoff-package">View handoff package</button>
           ${isPending ? `<button class="btn btn-primary" data-action="provider-confirm">Simulate provider confirmation</button>` : ""}
+          ${isPending ? `<button class="btn btn-ghost" data-action="simulate-timeout">Simulate timeout fallback</button>` : ""}
           <button class="btn btn-ghost" data-action="go-intro">Back to intro</button>
           <button class="btn btn-primary" data-action="go-picker">Walk through another →</button>
         </div>
+        ${state.handoffPackageOpen ? renderHandoffPackagePreview() : ""}
       </div>
+    </div>
+  `;
+}
+
+function renderHandoffPackagePreview() {
+  const pkg = state.handoffPackage;
+  if (!pkg) return `<div class="handoff-preview"><em>Loading handoff package…</em></div>`;
+  return `
+    <div class="handoff-preview">
+      <div class="handoff-preview-header">
+        <h3>Handoff Package — Section 10A</h3>
+        <span class="handoff-preview-id">${escapeHtml(pkg.handoff_package_id || "")}</span>
+        <button class="btn btn-ghost btn-small" data-action="close-handoff-package">Close</button>
+      </div>
+      <p class="handoff-preview-note">Structured artifact transmitted to the provider on session completion. In production this is JSON over webhook (or PDF) per the schema's transmission semantics.</p>
+      <pre class="handoff-preview-body">${escapeHtml(JSON.stringify(pkg, null, 2))}</pre>
     </div>
   `;
 }
@@ -1064,19 +1379,31 @@ document.addEventListener("click", (e) => {
   if (action === "go-intro") { state.scene = "intro"; state.outroOutcome = null; state.pendingUI = null; render(); return; }
   if (action === "go-picker") { state.scene = "picker"; state.outroOutcome = null; state.pendingUI = null; render(); return; }
   if (action === "provider-confirm") { confirmProviderEstablishment(); return; }
+  if (action === "simulate-timeout") { simulateProviderTimeout(); return; }
+  if (action === "view-handoff-package") { viewHandoffPackage(); return; }
+  if (action === "close-handoff-package") { state.handoffPackageOpen = false; render(); return; }
   if (action === "open-custom") { state.scene = "custom"; render(); return; }
   if (action === "run-custom") {
+    const getVal = (id) => { const el = document.getElementById(id); return el ? el.value : ""; };
+    const getCheck = (id) => { const el = document.getElementById(id); return el ? el.checked : false; };
     const spec = {
-      beneficiaryName: document.getElementById("cb-bn").value,
-      beneficiaryDob: document.getElementById("cb-bdob").value,
-      ownerName: document.getElementById("cb-on").value,
-      ownerDob: document.getElementById("cb-odob").value,
-      ownerDod: document.getElementById("cb-odod").value,
-      iraType: document.getElementById("cb-itype").value,
-      iraBalance: document.getElementById("cb-bal").value,
-      relationship: document.getElementById("cb-rel").value,
-      isMinor: document.getElementById("cb-minor").checked,
-      actorName: document.getElementById("cb-actor").value
+      beneficiaryName: getVal("cb-bn"),
+      beneficiaryDob: getVal("cb-bdob"),
+      ownerName: getVal("cb-on"),
+      ownerDob: getVal("cb-odob"),
+      ownerDod: getVal("cb-odod"),
+      iraType: getVal("cb-itype"),
+      iraBalance: getVal("cb-bal"),
+      relationship: getVal("cb-rel"),
+      isMinor: getCheck("cb-minor"),
+      actorName: getVal("cb-actor"),
+      explicitClassification: getVal("cb-explicit"),
+      isDisabled: getCheck("cb-disabled"),
+      isChronicallyIll: getCheck("cb-chronic"),
+      isTrustBeneficiary: getCheck("cb-trust"),
+      isEntity: getCheck("cb-entity"),
+      enableWithdrawalFlow: getCheck("cb-withdraw"),
+      withdrawalType: getVal("cb-wdtype") || "one_time"
     };
     state.customSpec = spec;
     startPersona("custom", spec);

@@ -62,7 +62,8 @@ v4-engine/
 | 1 | Elena Hale, 54 | Track 2 (post-RBD spouse) | Asserted LE + spouse-only treat-as-own option (separate from A/B framework) |
 | 2 | Milo Everett (via parent), 12 | Track 1 EDB minor child | Subject ≠ Actor; A/B election; phased rule (LE → 10-year at 21) |
 | 3 | Dane Family Trust | Track 3 unified | Self-cert + responsibility disclosure + in-system completion + provider_attention_alerts flag |
-| 4 | Make your own | depends on inputs | Stress-test the engine on edge cases |
+| 4 | Marisol Ortega, 58 | Track 1 EDB age-gap | Withdrawal request flow (Section 9) — one-time $50K with default federal withholding |
+| 5 | Make your own | depends on inputs | Stress-test the engine on edge cases — explicit classification override, EDB flags, trust path, withdrawal flow toggle |
 
 ## Running locally
 
@@ -82,7 +83,11 @@ node server.js                # http://127.0.0.1:8792
 - **Capability matrix is declarative** — the agent's toolbelt is filtered per session phase; tools not in the current phase are not even visible to Claude.
 - **Field registry is enforced** — `update_field` rejects unregistered paths and invalid enum values against the v1.5 canonical fields.
 - **Engine output is templated** — after `triage_engine` returns, the agent must call `present_template("engine_report", ...)`; free-form translation of engine results is forbidden.
-- **Provider-confirmation lifecycle (v1.27)** — the three "established" end states are marked `pending_provider_confirmation` until the provider acknowledges; the prototype simulates this with a button.
+- **Provider-confirmation lifecycle (v1.27)** — the three "established" end states are marked `pending_provider_confirmation` until the provider acknowledges. Both confirmation and timeout/fallback are simulated via outro buttons; timeout raises an `establishment_confirmation_timeout` provider attention alert.
+- **provider_attention_alerts as typed array** — Section 10B alerts are structured `{alert_id, alert_type, alert_priority, alert_message, alert_raised_at}` objects; new `append_provider_attention_alert` tool is the canonical write path.
+- **Withdrawal Request flow (Section 9)** — full subflow with 9A identity, 9B/C/D type-specific instructions (lump_sum / one_time / standing), 9E withholding (federal + state), and 9F handoff. Six new templates wire up the conversation. The Marisol persona demonstrates it end-to-end.
+- **Handoff Package preview (Section 10A)** — orchestrator generates a structured handoff JSON object on `complete_session`, accessible via `/api/agent/handoff-package` and rendered in the outro. Shows what the provider actually receives.
+- **Schema-bound enum validation** — `complete_session` validates `end_state` against the v1.5 Appendix; `update_field` enforces the canonical type/enum/source-attribution registry.
 - The cage is enforced by code (tools, server-side validation, capability matrix, gate predicates, field registry), not by prompt.
 - Subject vs Actor is preserved through the UI.
 - Track 3 keeps QST cases in-system.

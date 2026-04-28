@@ -11,7 +11,9 @@ const {
   getAvailableTools,
   computePhase,
   markEsignComplete,
-  markProviderConfirmed
+  markProviderConfirmed,
+  applyConfirmationTimeoutFallback,
+  generateHandoffPackage
 } = require("./tools");
 const { PERSONAS, buildCustomPersona, getChipsForSession } = require("./personas");
 
@@ -159,7 +161,9 @@ async function runAgentTurn(session, userMessage) {
     completed: session.state.completed,
     endState: session.state.endState,
     phase: computePhase(session),
-    establishmentStatus: session.state.fields["inherited_ira_establishment_status"] || null
+    establishmentStatus: session.state.fields["inherited_ira_establishment_status"] || null,
+    providerAttentionAlerts: session.state.providerAttentionAlerts || [],
+    handoffPackage: session.state.handoffPackage || null
   };
 }
 
@@ -361,11 +365,6 @@ async function handleApi(req, res, pathname) {
   }
 
   // Provider confirmation simulator — Schema v1.27 lifecycle.
-  // For the three "established" end states, the case is initially marked
-  // pending_provider_confirmation when complete_session fires; this endpoint
-  // simulates the provider acknowledging receipt and flips the status to
-  // confirmed (in good order). In production this would be a callback from
-  // the provider's systems, not a button click.
   if (pathname === "/api/agent/provider-confirm" && req.method === "POST") {
     try {
       const body = await readJsonBody(req);
@@ -377,12 +376,51 @@ async function handleApi(req, res, pathname) {
         sessionId: session.id,
         events,
         state: session.state,
-        establishmentStatus: session.state.fields["inherited_ira_establishment_status"]
+        establishmentStatus: session.state.fields["inherited_ira_establishment_status"],
+        providerAttentionAlerts: session.state.providerAttentionAlerts || []
       });
     } catch (e) {
       console.error("/api/agent/provider-confirm error:", e);
       sendJson(res, 500, { error: e.message || "Provider confirm failed" });
     }
+    return;
+  }
+
+  // Confirmation timeout simulator — Schema v1.27 fallback machinery.
+  // When the provider's grace period elapses without acknowledgment,
+  // the orchestrator marks pending_provider_confirmation_fallback_applied,
+  // raises an establishment_confirmation_timeout alert, and re-pushes
+  // the corrective package. This endpoint simulates that elapsed-time event.
+  if (pathname === "/api/agent/simulate-timeout" && req.method === "POST") {
+    try {
+      const body = await readJsonBody(req);
+      const session = agentSessions.get(body.sessionId);
+      if (!session) return sendJson(res, 404, { error: "Session not found" });
+      const { ok, reason, events } = applyConfirmationTimeoutFallback(session);
+      if (!ok) return sendJson(res, 400, { error: reason });
+      sendJson(res, 200, {
+        sessionId: session.id,
+        events,
+        state: session.state,
+        establishmentStatus: session.state.fields["inherited_ira_establishment_status"],
+        providerAttentionAlerts: session.state.providerAttentionAlerts || []
+      });
+    } catch (e) {
+      console.error("/api/agent/simulate-timeout error:", e);
+      sendJson(res, 500, { error: e.message || "Timeout simulation failed" });
+    }
+    return;
+  }
+
+  // Handoff package preview — returns the structured Section 10A artifact
+  // that was generated on complete_session. Rendered in the outro overlay.
+  if (pathname === "/api/agent/handoff-package" && req.method === "GET") {
+    const url = new URL(req.url, `http://${req.headers.host || `${HOST}:${PORT}`}`);
+    const sessionId = url.searchParams.get("sessionId");
+    const session = agentSessions.get(sessionId);
+    if (!session) return sendJson(res, 404, { error: "Session not found" });
+    if (!session.state.handoffPackage) return sendJson(res, 404, { error: "No handoff package generated yet (session not completed)." });
+    sendJson(res, 200, { handoffPackage: session.state.handoffPackage });
     return;
   }
 

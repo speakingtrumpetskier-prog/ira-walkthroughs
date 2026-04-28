@@ -1,0 +1,10 @@
+{
+  "name": "convergent-v4-engine",
+  "private": true,
+  "version": "0.4.0",
+  "description": "Live Claude conversational agent + deterministic triage engine + separate chatbot surface",
+  "scripts": { "start": "node server.js" },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.91.1"
+  }
+}

@@ -1778,3 +1778,139 @@ a { color: var(--green-800); }
 
 /* Hide the old bottom hint if it's leftover */
 .chat-bottom-hint { display: none; }
+
+/* ======================================================================
+   v5 — input dock (two-zone) + bottom-aligned chat thread
+   ====================================================================== */
+
+/* Make the chat thread cluster messages at the bottom, near the dock */
+.chat-thread {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px 28px 14px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 14px;
+}
+
+/* The dock — two zones, snug together */
+.input-dock {
+  flex-shrink: 0;
+  background: var(--paper);
+  border-top: 1px solid var(--line);
+  padding: 12px 28px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.step-zone {
+  background: var(--paper-strong);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.step-zone-empty {
+  background: transparent;
+  border: 1px dashed var(--line-strong);
+  color: var(--muted);
+  font-style: italic;
+  font-size: 0.85rem;
+  text-align: center;
+}
+.step-zone-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.66rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.step-zone-phase { color: var(--green-700); font-weight: 700; }
+.step-zone-step { color: var(--muted); font-family: monospace; }
+.step-zone-prompt {
+  font-size: 0.88rem;
+  color: var(--copy);
+  font-weight: 500;
+}
+.step-zone-hint { color: var(--muted); font-style: italic; font-size: 0.82rem; }
+.step-zone-hint code {
+  background: rgba(15, 110, 86, 0.10);
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 0.85em;
+  font-style: normal;
+}
+.step-zone-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.step-zone-buttons .step-zone-controls { justify-content: flex-end; }
+.step-zone-help-row { padding-top: 4px; }
+.step-zone-help { font-size: 0.82rem; }
+
+/* Step text input (top zone when active step is text mode) */
+.step-zone-input-row {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+.step-zone-input-row input {
+  flex: 1;
+  padding: 11px 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  font-size: 0.95rem;
+  font-family: inherit;
+  background: var(--paper);
+}
+.step-zone-input-row input:focus {
+  outline: none;
+  border-color: var(--green-700);
+  box-shadow: 0 0 0 3px rgba(15, 110, 86, 0.12);
+}
+
+/* Step buttons / choices */
+.step-zone-button {
+  padding: 10px 22px;
+  font-size: 0.92rem;
+}
+
+/* The persistent assistant ask zone (always at the very bottom) */
+.ask-zone {
+  background: rgba(184, 134, 11, 0.04);
+  border: 1px solid rgba(184, 134, 11, 0.20);
+  border-radius: 10px;
+  padding: 8px 10px;
+}
+.ask-zone-input-row {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+.ask-zone-input-row input {
+  flex: 1;
+  padding: 11px 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  font-size: 0.95rem;
+  font-family: inherit;
+  background: var(--paper-strong);
+}
+.ask-zone-input-row input:focus {
+  outline: none;
+  border-color: var(--gold-600);
+  box-shadow: 0 0 0 3px rgba(184, 134, 11, 0.15);
+}
+.ask-button { background: var(--green-900); }
+
+/* Hide the legacy chat-bottom-* styles (replaced by input-dock) */
+.chat-bottom-bar,
+.chat-bottom-indicator,
+.chat-bottom-secondary-row,
+.chat-bottom-hint { display: none !important; }

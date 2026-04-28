@@ -929,10 +929,17 @@ function renderActions() {
   }
 
   if (state.pendingUI && state.pendingUI.type === "kba") {
+    const kbaChipsHtml = (state.pendingChips || []).length > 0
+      ? `<div class="suggestion-row">
+           <span class="suggestion-label">Try</span>
+           ${state.pendingChips.map((label) => `<button class="suggestion-chip" data-action="kba-chip" data-label="${escapeHtml(label)}">${escapeHtml(label)}</button>`).join("")}
+         </div>`
+      : "";
     el.innerHTML = `
       ${errorHtml}${nudgeHtml}
       <div class="esign-mock">
         <div class="chat-prompt">${escapeHtml(state.pendingUI.prompt || "Identity verification")}</div>
+        ${kbaChipsHtml}
         <div class="input-row">
           <input class="text-input" id="kbaInput" placeholder="Type your answer…" ${state.loading ? "disabled" : ""}/>
           <button class="send-button" data-action="kba-submit" ${state.loading ? "disabled" : ""}>Submit</button>
@@ -1416,6 +1423,7 @@ document.addEventListener("click", (e) => {
     return;
   }
   if (action === "chip") { sendUserMessage(target.dataset.label); return; }
+  if (action === "kba-chip") { confirmKba(target.dataset.label); return; }
   if (action === "kba-submit") {
     const input = document.getElementById("kbaInput");
     if (input && input.value.trim()) confirmKba(input.value.trim());

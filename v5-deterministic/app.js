@@ -772,14 +772,7 @@ function renderSession() {
       <div class="session-layout">
         <div class="chat-pane">
           <div class="chat-thread" id="chatThread">${renderTranscript()}</div>
-          <div class="chat-bottom-bar">
-            ${state.apiError ? `<div class="chat-error">${escapeHtml(state.apiError)}</div>` : ""}
-            <div class="chat-input-row">
-              <input id="chatBottomInput" type="text" placeholder="${escapeHtml(activeBottomPlaceholder())}" ${state.chatbotLoading ? "disabled" : ""} />
-              <button class="btn btn-primary" data-action="chatbot-send" ${state.chatbotLoading ? "disabled" : ""}>Ask</button>
-            </div>
-            <div class="chat-bottom-hint">Free-form questions go to the help assistant. Workflow steps appear inline above.</div>
-          </div>
+          ${renderBottomBar()}
         </div>
         <div class="orch-pane">
           <div class="orch-pane-header">
@@ -796,10 +789,48 @@ function renderSession() {
   scrollChatToBottom();
 }
 
-function activeBottomPlaceholder() {
+function renderBottomBar() {
   const active = findActiveStepMsg();
-  if (!active) return "Ask a question…";
-  return `Ask the help assistant a question…`;
+  const mode = active ? stepInputMode(active.step) : "none";
+  const isTextMode = mode === "text";
+  const textInput = isTextMode ? active.step.inputs[0] : null;
+
+  let placeholder, primaryLabel, primaryAction, indicator;
+  if (state.outroOutcome) {
+    placeholder = "Ask the help assistant about this case…";
+    primaryLabel = "Ask";
+    primaryAction = "bottom-ask";
+    indicator = "Workflow complete · ask the help assistant about this case";
+  } else if (isTextMode) {
+    placeholder = textInput.label + (textInput.suggested ? ` (try ${textInput.suggested})` : "");
+    primaryLabel = "Send answer";
+    primaryAction = "bottom-answer";
+    indicator = `Answering: <strong>${escapeHtml(textInput.label)}</strong> — or click "Ask the assistant" to ask a question instead.`;
+  } else {
+    placeholder = "Ask the help assistant a question…";
+    primaryLabel = "Ask";
+    primaryAction = "bottom-ask";
+    indicator = active
+      ? "Choose an option above, or ask the help assistant a general rules question here."
+      : "Ask the help assistant a general rules question.";
+  }
+
+  const errorHtml = state.apiError ? `<div class="chat-error">${escapeHtml(state.apiError)}</div>` : "";
+  const askInsteadBtn = isTextMode
+    ? `<button type="button" class="btn btn-link bottom-secondary" data-action="bottom-ask">Ask the assistant instead</button>`
+    : "";
+
+  return `
+    <div class="chat-bottom-bar">
+      ${errorHtml}
+      <div class="chat-bottom-indicator">${indicator}</div>
+      <div class="chat-input-row">
+        <input id="chatBottomInput" type="text" placeholder="${escapeHtml(placeholder)}" ${state.chatbotLoading || state.loading ? "disabled" : ""} />
+        <button class="btn btn-primary" data-action="${primaryAction}" ${state.chatbotLoading || state.loading ? "disabled" : ""}>${primaryLabel}</button>
+      </div>
+      ${askInsteadBtn ? `<div class="chat-bottom-secondary-row">${askInsteadBtn}</div>` : ""}
+    </div>
+  `;
 }
 
 function scrollChatToBottom() {
@@ -808,7 +839,7 @@ function scrollChatToBottom() {
 }
 
 function attachSessionHandlers() {
-  // Form-in-bubble handler (only for the active step)
+  // Multi-input form-in-bubble handler (rare — only for "form" mode steps)
   const form = document.getElementById("activeStepForm");
   if (form) {
     form.addEventListener("submit", (e) => {
@@ -827,20 +858,26 @@ function attachSessionHandlers() {
       submitStep(formData);
     });
   }
-  // Bottom chat input
+  // Bottom bar — Enter key triggers the primary action (answer or ask)
   const inp = document.getElementById("chatBottomInput");
   if (inp) {
     inp.addEventListener("keydown", (e) => {
       if (e.key === "Enter") {
         e.preventDefault();
-        if (inp.value.trim()) {
-          const v = inp.value;
-          inp.value = "";
+        if (!inp.value.trim()) return;
+        const active = findActiveStepMsg();
+        const mode = active ? stepInputMode(active.step) : "none";
+        const v = inp.value;
+        inp.value = "";
+        if (mode === "text" && !state.outroOutcome) {
+          const inputName = active.step.inputs[0].name;
+          submitStep({ [inputName]: v });
+        } else {
           sendChatbotMessage(v);
         }
       }
     });
-    if (!state.chatbotLoading) inp.focus();
+    if (!state.chatbotLoading && !state.loading) inp.focus();
   }
 }
 
@@ -915,16 +952,69 @@ function renderStepBubble(msg) {
       ${step.bullets && step.bullets.length ? `<ul class="chat-step-bullets">${step.bullets.map((b) => `<li>${escapeHtml(b)}</li>`).join("")}</ul>` : ""}
       ${step.envelope ? `<div class="esign-envelope">DocuSign envelope · <code>${escapeHtml(step.envelope)}</code></div>` : ""}
       ${step.options && step.options.files ? `<div class="upload-files">${step.options.files.map((f) => `<div class="upload-file">${escapeHtml(f)}</div>`).join("")}</div>` : ""}
-      ${isActive ? renderActiveForm(step) : renderResolvedSummary(msg)}
+      ${isActive ? renderActiveStepContent(step) : renderResolvedSummary(msg)}
     </div>
   `;
   return `<div class="chat-msg chat-msg-system">${header}</div>`;
 }
 
-function renderActiveForm(step) {
+/* ----------------------------------------------------------------------
+   stepInputMode — categorize how the active step takes user input
+   ---------------------------------------------------------------------- */
+function stepInputMode(step) {
+  if (!step) return "none";
+  const inputs = step.inputs || [];
+  if (inputs.length === 0) return "button";
+  if (inputs.length === 1) {
+    const i = inputs[0];
+    if (i.type === "text") return "text";          // bottom bar handles
+    if (i.type === "radio" || i.type === "select") return "choices"; // chip buttons
+    if (i.type === "checkbox") return "button";    // single-confirm = inline button
+  }
+  return "form"; // multi-input → inline form fallback
+}
+
+function renderActiveStepContent(step) {
+  const mode = stepInputMode(step);
   const helpHtml = step.helpAvailable && step.helpHint
-    ? `<button type="button" class="btn btn-link help-btn" data-action="prefill-help" data-prefill="${escapeHtml(step.helpHint)}">? Ask: ${escapeHtml(step.helpHint)}</button>`
+    ? `<button type="button" class="btn btn-link help-btn" data-action="prefill-help" data-prefill="${escapeHtml(step.helpHint)}">? Ask the assistant: ${escapeHtml(step.helpHint)}</button>`
     : "";
+
+  if (mode === "button") {
+    // Single button (or multiple) — synthesize formData (auto-true any required checkbox).
+    const inputs = step.inputs || [];
+    const actions = (step.actions || []).map((a, idx) => {
+      const synth = inputs.reduce((acc, i) => {
+        if (i.type === "checkbox" && i.required) acc[i.name] = "true";
+        return acc;
+      }, {});
+      return `<button type="button" class="btn btn-primary chat-step-button" data-action="step-submit" data-form='${escapeHtml(JSON.stringify(synth))}' ${state.loading ? "disabled" : ""}>${escapeHtml(a.label)}</button>`;
+    }).join("");
+    return `<div class="chat-step-actions">${actions}${helpHtml}</div>`;
+  }
+
+  if (mode === "choices") {
+    // Each option becomes a clickable bubble. Click → submit immediately.
+    const input = step.inputs[0];
+    const options = (input.options || []).map((o) => {
+      const formData = { [input.name]: o.value };
+      return `<button type="button" class="btn btn-choice chat-step-choice" data-action="step-submit" data-form='${escapeHtml(JSON.stringify(formData))}' ${state.loading ? "disabled" : ""}>${escapeHtml(o.label)}</button>`;
+    }).join("");
+    return `<div class="chat-step-choices">${options}</div>${helpHtml ? `<div class="chat-step-help">${helpHtml}</div>` : ""}`;
+  }
+
+  if (mode === "text") {
+    const input = step.inputs[0];
+    return `
+      <div class="chat-step-text-hint">
+        <span class="chat-step-text-arrow">↓</span>
+        <span>Type your answer in the input below — <em>${escapeHtml(input.label)}</em>${input.suggested ? ` (try <code>${escapeHtml(input.suggested)}</code>)` : ""}</span>
+      </div>
+      ${helpHtml ? `<div class="chat-step-help">${helpHtml}</div>` : ""}
+    `;
+  }
+
+  // mode === "form" — multi-input, inline form fallback
   return `
     <form class="chat-form-fields" id="activeStepForm">
       ${(step.inputs || []).map(renderInput).join("")}
@@ -1244,12 +1334,34 @@ document.addEventListener("click", (e) => {
     }
     return;
   }
-  if (action === "chatbot-send") {
+  if (action === "step-submit") {
+    // Click on a choice button or single-action button — formData is JSON-encoded in data-form
+    if (state.loading) return;
+    let formData = {};
+    try { formData = t.dataset.form ? JSON.parse(t.dataset.form) : {}; } catch (e) { formData = {}; }
+    submitStep(formData);
+    return;
+  }
+  if (action === "bottom-answer") {
+    if (state.loading) return;
+    const inp = document.getElementById("chatBottomInput");
+    if (!inp || !inp.value.trim()) return;
+    const active = findActiveStepMsg();
+    if (!active || stepInputMode(active.step) !== "text") return;
+    const inputName = active.step.inputs[0].name;
+    const v = inp.value;
+    inp.value = "";
+    submitStep({ [inputName]: v });
+    return;
+  }
+  if (action === "bottom-ask") {
     const inp = document.getElementById("chatBottomInput");
     if (inp && inp.value.trim()) {
       const v = inp.value;
       inp.value = "";
       sendChatbotMessage(v);
+    } else if (inp) {
+      inp.focus();
     }
     return;
   }

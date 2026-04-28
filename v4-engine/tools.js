@@ -29,6 +29,7 @@
    ====================================================================== */
 
 const { triageEngine } = require("./backend/triage-engine");
+const { computeStateWithholding } = require("./backend/state-withholding");
 
 /* ======================================================================
    GATE DEFINITIONS (Schema Section 5C — twelve gates)
@@ -121,6 +122,7 @@ const CANONICAL_FIELDS = {
   "beneficiary.name (Subject)": { section: "3A", type: "string", source: "seeded", agent_writable: false, note: "labeled variant for non-individual personas" },
   "beneficiary.dob": { section: "3A", type: "date", source: "seeded_or_collected", agent_writable: true },
   "beneficiary.age": { section: "3A", type: "string", source: "computed", agent_writable: false },
+  "beneficiary.state": { section: "3A", type: "string", source: "collected", agent_writable: true, note: "Two-letter state code; drives state withholding determination (Section 9E)." },
   "beneficiary.relationship": { section: "4A", type: "string", source: "collected", agent_writable: true },
   "beneficiary.type": { section: "4A", type: "enum", values: ["individual", "authorized_representative", "trust_trustee", "entity_rep"], source: "collected", agent_writable: true },
   "beneficiary.classification": { section: "4D", type: "enum", values: ["spouse", "edb_minor_child", "edb_age_gap", "edb_disabled", "edb_chronic_illness", "non_edb_person", "non_edb_nonperson", "qualified_see_through_trust"], source: "engine_input", agent_writable: true },
@@ -257,6 +259,9 @@ const CANONICAL_FIELDS = {
   "federal_withholding_election": { section: "9E", type: "enum", values: ["default_10_percent", "elected_amount", "waived"], source: "collected", agent_writable: true },
   "federal_withholding_percentage": { section: "9E", type: "string", source: "collected", agent_writable: true },
   "state_withholding_applicable": { section: "9E", type: "boolean", source: "computed", agent_writable: false },
+  "state_withholding_mandatory": { section: "9E", type: "boolean", source: "computed", agent_writable: false },
+  "state_withholding_default_rate": { section: "9E", type: "string", source: "computed", agent_writable: false },
+  "state_withholding_state_label": { section: "9E", type: "string", source: "computed", agent_writable: false },
   "state_withholding_election": { section: "9E", type: "enum", values: ["default", "elected_amount", "waived", "not_applicable"], source: "collected", agent_writable: true },
   "state_withholding_percentage": { section: "9E", type: "string", source: "collected", agent_writable: true },
   "withdrawal_tax_disclosure_acknowledged": { section: "9E", type: "boolean", source: "collected", agent_writable: true },
@@ -772,26 +777,54 @@ You are setting up a recurring withdrawal from this inherited IRA on the followi
     };
   },
 
-  withdrawal_withholding_disclosure: ({ federal_election, federal_pct, state_applicable, state_election, state_pct, beneficiary_name }) => ({
-    title: "Withholding Election — Federal & State",
-    body: `**Withholding Election**
+  withdrawal_withholding_disclosure: (vars) => {
+    const {
+      federal_election, federal_pct,
+      state_applicable, state_mandatory, state_default_rate_pct,
+      state_label, state_note, state_known,
+      state_election, state_pct, beneficiary_name
+    } = vars;
+    const truthy = (v) => v === true || v === "true";
+    const stateApplies = truthy(state_applicable);
+    const stateMandatory = truthy(state_mandatory);
+    const stateKnown = truthy(state_known);
+    const fedLabel = federal_election === "default_10_percent" ? "Default (10%)"
+      : federal_election === "elected_amount" ? `Elected: ${federal_pct || "—"}%`
+      : federal_election === "waived" ? "Waived"
+      : "—";
+    let stateBlock;
+    if (!stateKnown) {
+      stateBlock = `**State (${state_label || "—"}):** ${state_note || "Beneficiary state not yet collected; state withholding cannot be determined."}`;
+    } else if (!stateApplies) {
+      stateBlock = `**State (${state_label || "—"}):** Not applicable. ${state_note || ""}`;
+    } else {
+      const electionDisplay = state_election === "default" ? `Default rate (${state_default_rate_pct || "—"})`
+        : state_election === "elected_amount" ? `Elected: ${state_pct || "—"}%`
+        : state_election === "waived" ? "Waived"
+        : "Not yet selected";
+      stateBlock = `**State (${state_label || "—"}):** ${state_note || ""}\nDefault rate: ${state_default_rate_pct || "—"}.\n${stateMandatory ? "Withholding is **mandatory** when federal withholding applies in this state." : "Withholding is **voluntary** in this state — you may elect or waive."}\nYour election: ${electionDisplay}`;
+    }
+    return {
+      title: "Withholding Election — Federal & State",
+      body: `**Withholding Election**
 
 Federal and (where applicable) state income tax withholding apply to this withdrawal. You may elect default rates, a specific elected amount, or — where allowed — waive withholding entirely.
 
-**Federal:** ${federal_election === "default_10_percent" ? "Default (10%)" : federal_election === "elected_amount" ? `Elected: ${federal_pct || "—"}%` : federal_election === "waived" ? "Waived" : "—"}
+**Federal:** ${fedLabel}
 
-**State:** ${!state_applicable ? "Not applicable (state has no withholding requirement on inherited IRA distributions)" : state_election === "default" ? "Default state rate" : state_election === "elected_amount" ? `Elected: ${state_pct || "—"}%` : state_election === "waived" ? "Waived" : "—"}
+${stateBlock}
 
 **Important:** Withholding is a prepayment of taxes you owe; it does not change your total tax liability. If your actual tax liability differs from the amount withheld, you'll either receive a refund or owe additional tax at filing time. Consult a tax advisor for personal planning.
 
 By acknowledging, you confirm your withholding election. The election is included in the withdrawal instruction transmitted to the provider.`,
-    bullets: [
-      `Federal: ${federal_election || "—"}${federal_pct ? ` (${federal_pct}%)` : ""}`,
-      `State: ${state_applicable ? (state_election || "—") : "Not applicable"}`,
-      "Withholding is a prepayment, not a tax change",
-      "Consult a tax advisor for personal planning"
-    ]
-  }),
+      bullets: [
+        `Federal: ${federal_election || "—"}${federal_pct ? ` (${federal_pct}%)` : ""}`,
+        stateKnown ? (stateApplies ? `State (${state_label}): ${state_election || "not yet selected"} · default ${state_default_rate_pct}` : `State (${state_label}): not applicable`) : `State: not yet collected`,
+        "Withholding is a prepayment, not a tax change",
+        "Consult a tax advisor for personal planning"
+      ]
+    };
+  },
 
   withdrawal_wrap: ({ withdrawal_type, beneficiary_name, ira_balance }) => {
     const typeLabel = {
@@ -1078,6 +1111,28 @@ function executeTool(session, toolName, input) {
       events.push({ type: "state_update", path, value });
       mutated = true;
       result = `Field '${path}' set to '${value}'.`;
+
+      // Side-effects: state-dependent computed fields auto-populate when their
+      // inputs change. The agent does not write these — the orchestrator does.
+      if (path === "beneficiary.state" || path === "federal_withholding_election") {
+        const stateCode = path === "beneficiary.state" ? value : session.state.fields["beneficiary.state"];
+        const fedElection = path === "federal_withholding_election" ? value : session.state.fields["federal_withholding_election"];
+        if (stateCode) {
+          const computed = computeStateWithholding(stateCode, fedElection);
+          const sideEffects = {
+            "state_withholding_applicable": String(computed.applicable),
+            "state_withholding_mandatory": String(computed.mandatory),
+            "state_withholding_default_rate": computed.default_rate_pct,
+            "state_withholding_state_label": computed.state_label
+          };
+          for (const [k, v] of Object.entries(sideEffects)) {
+            if (session.state.fields[k] !== v) {
+              session.state.fields[k] = v;
+              events.push({ type: "state_update", path: k, value: v });
+            }
+          }
+        }
+      }
       break;
     }
 
@@ -1152,7 +1207,58 @@ function executeTool(session, toolName, input) {
     }
 
     case "present_template": {
-      const rendered = renderTemplate(input.template_id, input.variables || {});
+      // Variable enrichment: for templates whose substantive content is
+      // state-dependent or engine-dependent, the orchestrator overrides
+      // any agent-provided variables with values pulled from canonical
+      // session state. This prevents the agent from fabricating content
+      // (state-specific tax rules, engine outputs) in template variables.
+      let variables = { ...(input.variables || {}) };
+      if (input.template_id === "engine_report") {
+        if (session.state.engine && session.state.engine.result && session.state.engine.result.ok) {
+          const out = session.state.engine.result.output_package;
+          variables = {
+            ...variables,
+            classification: session.state.fields["beneficiary.classification"] || variables.classification || "—",
+            applicable_rule: out.applicable_rule_set || "—",
+            election_eligible: out.election_eligible || "—",
+            election_options: (out.election_options || []).join(", ") || "(none)",
+            election_deadline: out.election_deadline || "(n/a)",
+            distribution_window_end: out.distribution_window_end || "(n/a)",
+            owner_rbd_status: out.owner_rbd_status || "—",
+            owner_rbd_date: out.owner_rbd_date || "—",
+            annual_rmd_required: String(out.annual_rmd_required),
+            election_track: out.election_track || "—",
+            beneficiary_name: variables.beneficiary_name
+              || session.state.fields["beneficiary.name"]
+              || session.state.fields["beneficiary.name (Subject)"]
+              || ""
+          };
+        }
+      }
+      if (input.template_id === "withdrawal_withholding_disclosure") {
+        const state = session.state.fields["beneficiary.state"];
+        const fedElection = session.state.fields["federal_withholding_election"];
+        const fedPct = session.state.fields["federal_withholding_percentage"];
+        const computed = computeStateWithholding(state, fedElection);
+        variables = {
+          ...variables,
+          federal_election: fedElection || variables.federal_election || "—",
+          federal_pct: fedPct || variables.federal_pct,
+          state_applicable: computed.applicable,
+          state_mandatory: computed.mandatory,
+          state_default_rate_pct: computed.default_rate_pct,
+          state_label: computed.state_label,
+          state_note: computed.state_note,
+          state_known: computed.known_state,
+          state_election: session.state.fields["state_withholding_election"] || variables.state_election,
+          state_pct: session.state.fields["state_withholding_percentage"] || variables.state_pct,
+          beneficiary_name: variables.beneficiary_name
+            || session.state.fields["beneficiary.name"]
+            || session.state.fields["beneficiary.name (Subject)"]
+            || ""
+        };
+      }
+      const rendered = renderTemplate(input.template_id, variables);
       session.pendingUI = {
         type: "template",
         template_id: input.template_id,

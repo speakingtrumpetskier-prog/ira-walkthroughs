@@ -1001,8 +1001,10 @@ function renderActions() {
       <div class="template-mock">
         <div class="template-tag">Template · ${escapeHtml(ui.template_id || "")}</div>
         <div class="template-title">${escapeHtml(ui.title || "")}</div>
-        <div class="template-body">${escapeHtml(ui.body || "")}</div>
-        ${ui.bullets && ui.bullets.length ? `<ul class="template-bullets">${ui.bullets.map((b) => `<li>${escapeHtml(b)}</li>`).join("")}</ul>` : ""}
+        <div class="template-scroll">
+          <div class="template-body">${escapeHtml(ui.body || "")}</div>
+          ${ui.bullets && ui.bullets.length ? `<ul class="template-bullets">${ui.bullets.map((b) => `<li>${escapeHtml(b)}</li>`).join("")}</ul>` : ""}
+        </div>
         <div class="continue-row">
           <button class="btn btn-primary" data-action="template-ack" ${state.loading ? "disabled" : ""}>Acknowledge</button>
         </div>

@@ -1110,6 +1110,12 @@ a { color: var(--green-800); }
   display: flex;
   flex-direction: column;
   gap: 12px;
+  /* Bound the card so long content (e.g. engine_report) cannot push the
+     Acknowledge button off-screen or under the floating chatbot widget.
+     The body+bullets area scrolls inside the card; tag/title/button stay anchored. */
+  max-height: min(58vh, 560px);
+  min-height: 0;
+  overflow: hidden;
 }
 .template-tag {
   font-size: 0.7rem;
@@ -1117,12 +1123,20 @@ a { color: var(--green-800); }
   text-transform: uppercase;
   color: var(--gold-600);
   font-weight: 700;
+  flex-shrink: 0;
 }
 .template-title {
   font-size: 1.05rem;
   font-weight: 600;
   color: var(--green-950);
   margin-bottom: 4px;
+  flex-shrink: 0;
+}
+.template-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 6px; /* room for scrollbar without overlapping text */
 }
 .template-body {
   font-size: 0.94rem;
@@ -1137,6 +1151,12 @@ a { color: var(--green-800); }
   color: var(--copy);
 }
 .template-bullets li { margin: 2px 0; }
+.template-mock .continue-row {
+  flex-shrink: 0;
+  /* Keep the Acknowledge button on top of the floating chatbot widget edge. */
+  position: relative;
+  z-index: 1;
+}
 
 /* Floating chatbot widget */
 .chatbot-widget {

@@ -43,3 +43,25 @@ services:
         value: low
       - key: ANTHROPIC_API_KEY
         sync: false
+
+  - type: web
+    name: convergent-v5
+    runtime: node
+    rootDir: v5-deterministic
+    plan: free
+    buildCommand: npm install
+    startCommand: node server.js
+    healthCheckPath: /api/health
+    envVars:
+      - key: HOST
+        value: 0.0.0.0
+      - key: PORT
+        value: 10000
+      - key: NODE_VERSION
+        value: 20
+      - key: MODEL
+        value: claude-opus-4-7
+      - key: EFFORT
+        value: low
+      - key: ANTHROPIC_API_KEY
+        sync: false

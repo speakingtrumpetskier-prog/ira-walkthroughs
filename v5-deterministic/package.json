@@ -1,0 +1,10 @@
+{
+  "name": "convergent-v5-deterministic",
+  "private": true,
+  "version": "0.5.0",
+  "description": "Form-driven deterministic workflow + inline help chatbot. No conversational agent in the core path.",
+  "scripts": { "start": "node server.js" },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.91.1"
+  }
+}

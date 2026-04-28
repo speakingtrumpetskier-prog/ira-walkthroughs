@@ -173,13 +173,19 @@ const state = {
   outroOutcome: null,
   handoffPackage: null,
   handoffPackageOpen: false,
-  // chatbot (inline)
-  chatbotOpen: false,
+  // unified chat transcript (workflow + chatbot interleaved)
+  transcript: [],
+  transcriptCounter: 0,
+  // chatbot session tracking (no separate panel — appears inline in transcript)
   chatbotSessionId: null,
-  chatbotThread: [],
   chatbotLoading: false,
   customSpec: defaultCustomSpec()
 };
+
+function nextMsgId() {
+  state.transcriptCounter += 1;
+  return `m${state.transcriptCounter}`;
+}
 
 function defaultCustomSpec() {
   return {
@@ -276,11 +282,16 @@ async function apiChatbotChat(message) {
 /* ----------------------------------------------------------------------
    STATE APPLY
    ---------------------------------------------------------------------- */
-function applySessionResponse(data) {
+function applySessionResponse(data, opts) {
+  opts = opts || {};
   if (!data) return;
   if (data.sessionId) state.sessionId = data.sessionId;
   if (data.persona) state.persona = data.persona;
-  if (data.step) state.step = data.step;
+
+  const previousStep = state.step;
+  const newStep = data.step;
+  if (newStep) state.step = newStep;
+
   if (data.state) {
     const incoming = data.state;
     state.freshFields = new Set();
@@ -297,7 +308,37 @@ function applySessionResponse(data) {
       state.outroOutcome = incoming.endState;
     }
   }
+
+  // Transcript management — append the new step as a system message if it's
+  // different from the prior active one. The submit handler is responsible
+  // for marking the prior message resolved + appending the user response
+  // BEFORE this point fires.
+  if (newStep) {
+    const prevActive = findActiveStepMsg();
+    const isNewStep = !prevActive || prevActive.step.step_id !== newStep.step_id;
+    if (isNewStep || opts.alwaysAppend) {
+      state.transcript.push({
+        id: nextMsgId(),
+        role: "system",
+        kind: "step",
+        step: newStep,
+        status: "active"
+      });
+    } else {
+      // Same step echoed back (e.g., on initial load after a refresh) — refresh its descriptor.
+      prevActive.step = newStep;
+    }
+  }
+
   setTimeout(() => { state.freshFields = new Set(); render(); }, 1500);
+}
+
+function findActiveStepMsg() {
+  for (let i = state.transcript.length - 1; i >= 0; i--) {
+    const m = state.transcript[i];
+    if (m.role === "system" && m.kind === "step" && m.status === "active") return m;
+  }
+  return null;
 }
 
 /* ----------------------------------------------------------------------
@@ -331,6 +372,9 @@ async function startPersona(personaId, customSpec) {
   state.handoffPackageOpen = false;
   state.outroOutcome = null;
   state.apiError = null;
+  state.transcript = [];
+  state.transcriptCounter = 0;
+  state.chatbotSessionId = null;
   state.scene = "session";
   state.loading = true;
   render();
@@ -347,6 +391,19 @@ async function startPersona(personaId, customSpec) {
 
 async function submitStep(formData) {
   if (state.loading) return;
+  // Mark the active step resolved + append a user-response message BEFORE the network call.
+  const active = findActiveStepMsg();
+  if (active) {
+    active.status = "resolved";
+    active.userResponse = summarizeResponse(active.step, formData);
+    state.transcript.push({
+      id: nextMsgId(),
+      role: "user",
+      kind: "step_response",
+      text: active.userResponse,
+      stepRef: active.step.step_id
+    });
+  }
   state.loading = true;
   state.apiError = null;
   render();
@@ -355,9 +412,73 @@ async function submitStep(formData) {
     applySessionResponse(data);
   } catch (e) {
     state.apiError = e.message;
+    // Roll back the resolved status if submission failed
+    if (active) {
+      active.status = "active";
+      delete active.userResponse;
+      // Pop the user-response message we just appended
+      if (state.transcript.length && state.transcript[state.transcript.length - 1].kind === "step_response") {
+        state.transcript.pop();
+      }
+    }
   } finally {
     state.loading = false;
     render();
+  }
+}
+
+/* ----------------------------------------------------------------------
+   summarizeResponse — human-readable summary for the user-response bubble
+   ---------------------------------------------------------------------- */
+function summarizeResponse(step, formData) {
+  switch (step.type) {
+    case "welcome": return "Begin";
+    case "auth_rep_role": return formData["actor.role"] || "(role)";
+    case "auth_rep_upload": return "Submitted documents";
+    case "trust_info": return `Trust: ${formData["trust.name"] || ""}${formData.trustee_type ? ` · ${formData.trustee_type}` : ""}`;
+    case "kba": return formData.kba_answer || "(answer)";
+    case "death_cert": return "Confirmed";
+    case "trust_selfcert": return formData.selfcert_decision === "completed" ? "Self-cert: completed" : "Self-cert: declined";
+    case "classification": {
+      const rel = formData["beneficiary.relationship"] || "";
+      const flags = [];
+      if (formData.is_minor === "true") flags.push("minor");
+      if (formData.is_disabled === "true") flags.push("disabled");
+      if (formData.is_chronically_ill === "true") flags.push("chronically ill");
+      return `Relationship: ${rel}${flags.length ? ` (${flags.join(", ")})` : ""}`;
+    }
+    case "edb_confirm": return "Confirmed";
+    case "engine_call": return "Run engine";
+    case "engine_report": return "Acknowledged the engine report";
+    case "yod_rmd_disclosure": return "Acknowledged the YOD RMD disclosure";
+    case "spouse_options": return `Path: ${formData["spouse.path_chosen"] || ""}`;
+    case "election_track1": return `Election: ${formData["election.distribution_method"] || ""}`;
+    case "acknowledge_track2": return "Acknowledged distribution requirements";
+    case "trust_disclosure": return "Acknowledged trustee responsibility disclosure";
+    case "esign": return "Signed";
+    case "withdrawal_esign": return "Signed withdrawal instruction";
+    case "wrap_template": return "Acknowledged wrap-up";
+    case "withdrawal_options": {
+      const c = formData.withdrawal_choice;
+      if (c === "decline") return "Skip withdrawal setup";
+      return `Withdrawal: ${c || ""}`;
+    }
+    case "withdrawal_lumpsum": return "Confirmed lump sum";
+    case "withdrawal_onetime": {
+      const t = formData.onetime_amount_type;
+      if (t === "percentage") return `One-time: ${formData.onetime_amount_percentage || "?"}% (${formData.onetime_timing_preference || ""})`;
+      return `One-time: $${formData.onetime_amount || "?"} (${formData.onetime_timing_preference || ""})`;
+    }
+    case "withdrawal_standing": return `Standing: ${formData.standing_distribution_basis || ""} · ${formData.standing_frequency || ""} · start ${formData.standing_start_date || ""}`;
+    case "state_capture": return `State: ${(formData["beneficiary.state"] || "").toUpperCase()}`;
+    case "withholding": {
+      const fed = formData.federal_withholding_election || "—";
+      const st = formData.state_withholding_election;
+      return `Federal: ${fed}${st ? ` · State: ${st}` : ""}`;
+    }
+    case "withdrawal_wrap": return "Acknowledged withdrawal wrap";
+    case "complete_session": return "Finalize";
+    default: return "Continue";
   }
 }
 
@@ -386,42 +507,55 @@ async function viewHandoffPackage() {
   render();
 }
 
-async function openChatbot(prefill) {
-  state.chatbotOpen = true;
-  if (!state.chatbotSessionId) {
-    try {
-      const r = await apiChatbotStart();
-      state.chatbotSessionId = r.sessionId;
-    } catch (e) {
-      state.apiError = "Help assistant unavailable: " + e.message;
-    }
+async function ensureChatbotSession() {
+  if (state.chatbotSessionId) return;
+  try {
+    const r = await apiChatbotStart();
+    state.chatbotSessionId = r.sessionId;
+  } catch (e) {
+    // Silent — error surfaces when the user tries to send
   }
-  render();
-  if (prefill) {
-    const inp = document.getElementById("chatbotInput");
-    if (inp) { inp.value = prefill; inp.focus(); }
-  }
-}
-
-function closeChatbot() {
-  state.chatbotOpen = false;
-  render();
 }
 
 async function sendChatbotMessage(text) {
-  if (!text || !text.trim() || state.chatbotLoading) return;
-  state.chatbotThread.push({ role: "user", text: text.trim() });
+  const trimmed = (text || "").trim();
+  if (!trimmed || state.chatbotLoading) return;
+  // Append user question and pending bot bubble to the unified transcript
+  state.transcript.push({
+    id: nextMsgId(),
+    role: "user",
+    kind: "chatbot_question",
+    text: trimmed
+  });
+  const botMsgId = nextMsgId();
+  state.transcript.push({
+    id: botMsgId,
+    role: "chatbot",
+    kind: "chatbot_reply",
+    text: "",
+    pending: true
+  });
   state.chatbotLoading = true;
-  renderChatbotPanel();
+  render();
   try {
-    const res = await apiChatbotChat(text.trim());
+    if (!state.chatbotSessionId) await ensureChatbotSession();
+    const res = await apiChatbotChat(trimmed);
     if (res.sessionId) state.chatbotSessionId = res.sessionId;
-    state.chatbotThread.push({ role: "bot", text: res.text || "(no response)" });
+    const botMsg = state.transcript.find((m) => m.id === botMsgId);
+    if (botMsg) {
+      botMsg.text = res.text || "(no response)";
+      botMsg.pending = false;
+      if (res.error) botMsg.text = `Help assistant unavailable: ${res.error}`;
+    }
   } catch (e) {
-    state.chatbotThread.push({ role: "bot", text: `Error: ${e.message}` });
+    const botMsg = state.transcript.find((m) => m.id === botMsgId);
+    if (botMsg) {
+      botMsg.text = `Help assistant error: ${e.message}`;
+      botMsg.pending = false;
+    }
   } finally {
     state.chatbotLoading = false;
-    renderChatbotPanel();
+    render();
   }
 }
 
@@ -617,7 +751,7 @@ function renderCustomBuilder() {
 }
 
 /* ======================================================================
-   SESSION SCENE — form-step left, system view right
+   SESSION SCENE — chat-transcript layout
    ====================================================================== */
 function renderSession() {
   if (!state.persona) {
@@ -633,10 +767,20 @@ function renderSession() {
           <strong>${escapeHtml(state.persona.name || "")}</strong>
           <span>${escapeHtml(state.persona.provider || "")} · ${escapeHtml(state.persona.sessionRef || "")}</span>
         </div>
-        <div class="session-mode">v5 · deterministic form-driven</div>
+        <div class="session-mode">v5 · deterministic · chat transcript</div>
       </header>
       <div class="session-layout">
-        <div class="form-pane" id="formPane">${renderFormPane()}</div>
+        <div class="chat-pane">
+          <div class="chat-thread" id="chatThread">${renderTranscript()}</div>
+          <div class="chat-bottom-bar">
+            ${state.apiError ? `<div class="chat-error">${escapeHtml(state.apiError)}</div>` : ""}
+            <div class="chat-input-row">
+              <input id="chatBottomInput" type="text" placeholder="${escapeHtml(activeBottomPlaceholder())}" ${state.chatbotLoading ? "disabled" : ""} />
+              <button class="btn btn-primary" data-action="chatbot-send" ${state.chatbotLoading ? "disabled" : ""}>Ask</button>
+            </div>
+            <div class="chat-bottom-hint">Free-form questions go to the help assistant. Workflow steps appear inline above.</div>
+          </div>
+        </div>
         <div class="orch-pane">
           <div class="orch-pane-header">
             <h3>Orchestrator state</h3>
@@ -646,26 +790,106 @@ function renderSession() {
         </div>
       </div>
       ${state.outroOutcome ? renderOutroOverlay() : ""}
-      ${renderChatbotShell()}
     </div>
   `;
-  attachFormHandlers();
+  attachSessionHandlers();
+  scrollChatToBottom();
 }
 
-function renderFormPane() {
-  if (state.outroOutcome) {
-    return `<div class="form-pane-empty">Session complete.</div>`;
+function activeBottomPlaceholder() {
+  const active = findActiveStepMsg();
+  if (!active) return "Ask a question…";
+  return `Ask the help assistant a question…`;
+}
+
+function scrollChatToBottom() {
+  const t = document.getElementById("chatThread");
+  if (t) t.scrollTop = t.scrollHeight;
+}
+
+function attachSessionHandlers() {
+  // Form-in-bubble handler (only for the active step)
+  const form = document.getElementById("activeStepForm");
+  if (form) {
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const formData = {};
+      const inputs = form.querySelectorAll("input, select, textarea");
+      inputs.forEach((el) => {
+        if (el.type === "checkbox") {
+          formData[el.name] = el.checked ? "true" : "";
+        } else if (el.type === "radio") {
+          if (el.checked) formData[el.name] = el.value;
+        } else {
+          formData[el.name] = el.value;
+        }
+      });
+      submitStep(formData);
+    });
   }
-  const step = state.step;
-  if (!step) {
-    return `<div class="form-pane-empty">Loading…</div>`;
+  // Bottom chat input
+  const inp = document.getElementById("chatBottomInput");
+  if (inp) {
+    inp.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        if (inp.value.trim()) {
+          const v = inp.value;
+          inp.value = "";
+          sendChatbotMessage(v);
+        }
+      }
+    });
+    if (!state.chatbotLoading) inp.focus();
   }
-  const errorHtml = state.apiError
-    ? `<div class="form-error">${escapeHtml(state.apiError)}</div>`
-    : "";
-  const helpHtml = step.helpAvailable
-    ? `<button class="btn btn-link help-btn" data-action="open-chatbot" data-prefill="${escapeHtml(step.helpHint || "")}">? Have a question</button>`
-    : "";
+}
+
+/* ----------------------------------------------------------------------
+   TRANSCRIPT RENDERING
+   ---------------------------------------------------------------------- */
+function renderTranscript() {
+  if (!state.transcript.length) {
+    return `<div class="transcript-empty">Loading…</div>`;
+  }
+  return state.transcript.map(renderMessage).join("");
+}
+
+function renderMessage(msg) {
+  if (msg.role === "user") return renderUserMessage(msg);
+  if (msg.role === "chatbot") return renderChatbotMessage(msg);
+  if (msg.role === "system" && msg.kind === "step") return renderStepBubble(msg);
+  return "";
+}
+
+function renderUserMessage(msg) {
+  const cls = msg.kind === "chatbot_question" ? "chat-msg-user chat-msg-user-question" : "chat-msg-user chat-msg-user-response";
+  return `
+    <div class="chat-msg ${cls}">
+      <div class="chat-bubble chat-bubble-user">${escapeHtml(msg.text)}</div>
+    </div>
+  `;
+}
+
+function renderChatbotMessage(msg) {
+  if (msg.pending) {
+    return `
+      <div class="chat-msg chat-msg-chatbot">
+        <div class="chat-msg-author">Help assistant</div>
+        <div class="chat-bubble chat-bubble-chatbot loading">…</div>
+      </div>
+    `;
+  }
+  return `
+    <div class="chat-msg chat-msg-chatbot">
+      <div class="chat-msg-author">Help assistant</div>
+      <div class="chat-bubble chat-bubble-chatbot">${renderMarkdown(msg.text)}</div>
+    </div>
+  `;
+}
+
+function renderStepBubble(msg) {
+  const step = msg.step;
+  const isActive = msg.status === "active";
   const phaseLabel = {
     intake: "Phase 1 · Intake",
     triage_prep: "Phase 2 · Triage prep",
@@ -673,28 +897,48 @@ function renderFormPane() {
     wrap: "Phase 4 · Wrap",
     complete: "Complete"
   }[step.phase] || step.phase;
-  return `
-    <div class="form-card">
-      <div class="form-meta">
-        <span class="form-phase">${escapeHtml(phaseLabel)}</span>
-        <span class="form-step-id">${escapeHtml(step.step_id)}</span>
-      </div>
-      <h2 class="form-title">${escapeHtml(step.title || "")}</h2>
-      ${step.prompt ? `<p class="form-prompt">${escapeHtml(step.prompt)}</p>` : ""}
-      ${step.body ? `<div class="form-body">${renderMarkdown(step.body)}</div>` : ""}
-      ${step.bullets && step.bullets.length ? `<ul class="form-bullets">${step.bullets.map((b) => `<li>${escapeHtml(b)}</li>`).join("")}</ul>` : ""}
-      ${step.envelope ? `<div class="esign-envelope">DocuSign envelope · <code>${escapeHtml(step.envelope)}</code></div>` : ""}
-      ${step.options && step.options.files ? `<div class="upload-files">${step.options.files.map((f) => `<div class="upload-file">${escapeHtml(f)}</div>`).join("")}</div>` : ""}
-      <form class="form-fields" id="stepForm">
-        ${(step.inputs || []).map(renderInput).join("")}
-        ${errorHtml}
-        <div class="form-actions">
-          ${helpHtml}
-          ${(step.actions || []).map((a) => `<button type="submit" class="btn btn-primary" data-kind="${escapeHtml(a.kind)}" ${state.loading ? "disabled" : ""}>${escapeHtml(a.label)}</button>`).join("")}
-        </div>
-      </form>
+
+  const meta = `
+    <div class="chat-step-meta">
+      <span class="chat-step-phase">${escapeHtml(phaseLabel)}</span>
+      <span class="chat-step-id">${escapeHtml(step.step_id)}</span>
     </div>
   `;
+
+  const header = `
+    <div class="chat-msg-author">Workflow</div>
+    <div class="chat-bubble chat-bubble-system ${isActive ? "active" : "resolved"}">
+      ${meta}
+      ${step.title ? `<h3 class="chat-step-title">${escapeHtml(step.title)}</h3>` : ""}
+      ${step.prompt ? `<p class="chat-step-prompt">${escapeHtml(step.prompt)}</p>` : ""}
+      ${step.body ? `<div class="chat-step-body">${renderMarkdown(step.body)}</div>` : ""}
+      ${step.bullets && step.bullets.length ? `<ul class="chat-step-bullets">${step.bullets.map((b) => `<li>${escapeHtml(b)}</li>`).join("")}</ul>` : ""}
+      ${step.envelope ? `<div class="esign-envelope">DocuSign envelope · <code>${escapeHtml(step.envelope)}</code></div>` : ""}
+      ${step.options && step.options.files ? `<div class="upload-files">${step.options.files.map((f) => `<div class="upload-file">${escapeHtml(f)}</div>`).join("")}</div>` : ""}
+      ${isActive ? renderActiveForm(step) : renderResolvedSummary(msg)}
+    </div>
+  `;
+  return `<div class="chat-msg chat-msg-system">${header}</div>`;
+}
+
+function renderActiveForm(step) {
+  const helpHtml = step.helpAvailable && step.helpHint
+    ? `<button type="button" class="btn btn-link help-btn" data-action="prefill-help" data-prefill="${escapeHtml(step.helpHint)}">? Ask: ${escapeHtml(step.helpHint)}</button>`
+    : "";
+  return `
+    <form class="chat-form-fields" id="activeStepForm">
+      ${(step.inputs || []).map(renderInput).join("")}
+      <div class="chat-form-actions">
+        ${helpHtml}
+        ${(step.actions || []).map((a) => `<button type="submit" class="btn btn-primary" data-kind="${escapeHtml(a.kind)}" ${state.loading ? "disabled" : ""}>${escapeHtml(a.label)}</button>`).join("")}
+      </div>
+    </form>
+  `;
+}
+
+function renderResolvedSummary(msg) {
+  if (!msg.userResponse) return "";
+  return `<div class="chat-step-resolved">Your response: <strong>${escapeHtml(msg.userResponse)}</strong></div>`;
 }
 
 function renderInput(input) {
@@ -745,26 +989,6 @@ function renderInput(input) {
     `;
   }
   return "";
-}
-
-function attachFormHandlers() {
-  const form = document.getElementById("stepForm");
-  if (!form) return;
-  form.addEventListener("submit", (e) => {
-    e.preventDefault();
-    const formData = {};
-    const inputs = form.querySelectorAll("input, select, textarea");
-    inputs.forEach((el) => {
-      if (el.type === "checkbox") {
-        formData[el.name] = el.checked ? "true" : "";
-      } else if (el.type === "radio") {
-        if (el.checked) formData[el.name] = el.value;
-      } else {
-        formData[el.name] = el.value;
-      }
-    });
-    submitStep(formData);
-  });
 }
 
 /* ----- Orch pane (right side) ----- */
@@ -960,51 +1184,6 @@ function renderHandoffPackagePreview() {
   `;
 }
 
-/* ----- Inline chatbot ----- */
-function renderChatbotShell() {
-  if (state.chatbotOpen) {
-    return `<div class="chatbot-modal" id="chatbotModal">${renderChatbotPanel(true)}</div>`;
-  }
-  return `
-    <button class="chatbot-fab" data-action="open-chatbot" data-prefill="">? Help assistant</button>
-  `;
-}
-
-function renderChatbotPanel(returnHtml) {
-  const inner = `
-    <div class="chatbot-panel">
-      <div class="chatbot-header">
-        <div>
-          <h3>Help assistant</h3>
-          <p>General rules questions only. Cannot see your session data.</p>
-        </div>
-        <button class="btn btn-ghost btn-small" data-action="close-chatbot">Close</button>
-      </div>
-      <div class="chatbot-thread">
-        ${state.chatbotThread.map((m) => `<div class="chatbot-bubble chatbot-${escapeHtml(m.role)}">${renderMarkdown(m.text)}</div>`).join("")}
-        ${state.chatbotLoading ? `<div class="chatbot-bubble chatbot-bot loading">…</div>` : ""}
-      </div>
-      <div class="chatbot-input-row">
-        <input id="chatbotInput" type="text" placeholder="Ask a general rules question…" />
-        <button class="btn btn-primary" data-action="chatbot-send">Send</button>
-      </div>
-    </div>
-  `;
-  if (returnHtml) return inner;
-  const modal = document.getElementById("chatbotModal");
-  if (modal) modal.innerHTML = inner;
-  const inp = document.getElementById("chatbotInput");
-  if (inp) {
-    inp.focus();
-    inp.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        if (inp.value.trim()) sendChatbotMessage(inp.value);
-      }
-    });
-  }
-}
-
 /* ----------------------------------------------------------------------
    ROUTER
    ---------------------------------------------------------------------- */
@@ -1056,11 +1235,22 @@ document.addEventListener("click", (e) => {
     startPersona("custom", spec);
     return;
   }
-  if (action === "open-chatbot") { openChatbot(t.dataset.prefill); return; }
-  if (action === "close-chatbot") { closeChatbot(); return; }
+  if (action === "prefill-help") {
+    const prefill = t.dataset.prefill;
+    const inp = document.getElementById("chatBottomInput");
+    if (inp) {
+      inp.value = prefill || "";
+      inp.focus();
+    }
+    return;
+  }
   if (action === "chatbot-send") {
-    const inp = document.getElementById("chatbotInput");
-    if (inp && inp.value.trim()) sendChatbotMessage(inp.value);
+    const inp = document.getElementById("chatBottomInput");
+    if (inp && inp.value.trim()) {
+      const v = inp.value;
+      inp.value = "";
+      sendChatbotMessage(v);
+    }
     return;
   }
   if (action === "provider-confirm") { confirmProvider(); return; }

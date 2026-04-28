@@ -462,7 +462,7 @@ const TOOL_DEFS = [
   {
     name: "present_template",
     description:
-      "Emit a structured, templated communication. ONLY channel for substantive structured output. Available templates: 'engine_report', 'distribution_requirements_track2', 'trustee_responsibility_disclosure_track3', 'wrap_track1_election_made', 'wrap_track2_no_election', 'wrap_track3_qst_handoff', 'withdrawal_options', 'withdrawal_lumpsum_form', 'withdrawal_onetime_form', 'withdrawal_standing_form', 'withdrawal_withholding_disclosure', 'withdrawal_wrap', 'yod_rmd_disclosure'. After triage_engine, you MUST call present_template('engine_report'). For Section 6E YOD RMD, use 'yod_rmd_disclosure'. For withdrawals (Section 9), use the withdrawal_* sequence.",
+      "Emit a structured, templated communication. ONLY channel for substantive structured output. Available templates: 'engine_report', 'distribution_requirements_track2', 'trustee_responsibility_disclosure_track3', 'wrap_track1_election_made', 'wrap_track2_no_election', 'wrap_track3_qst_handoff', 'spouse_treat_as_own_options', 'withdrawal_options', 'withdrawal_lumpsum_form', 'withdrawal_onetime_form', 'withdrawal_standing_form', 'withdrawal_withholding_disclosure', 'withdrawal_wrap', 'yod_rmd_disclosure'. After triage_engine, you MUST call present_template('engine_report'). For spouse beneficiaries, after the engine_report ack, ALSO present 'spouse_treat_as_own_options' to surface the spouse-only path before proceeding. For Section 6E YOD RMD, use 'yod_rmd_disclosure'. For withdrawals (Section 9), use the withdrawal_* sequence.",
     input_schema: {
       type: "object",
       properties: {
@@ -475,6 +475,7 @@ const TOOL_DEFS = [
             "wrap_track1_election_made",
             "wrap_track2_no_election",
             "wrap_track3_qst_handoff",
+            "spouse_treat_as_own_options",
             "withdrawal_options",
             "withdrawal_lumpsum_form",
             "withdrawal_onetime_form",
@@ -825,6 +826,32 @@ By acknowledging, you confirm your withholding election. The election is include
       ]
     };
   },
+
+  spouse_treat_as_own_options: ({ owner_name, beneficiary_name, ira_balance }) => ({
+    title: "Spouse Treat-As-Own Option (separate from inherited IRA path)",
+    body: `As ${owner_name || "the decedent"}'s surviving spouse, you have a path available that is distinct from the inherited-IRA route the engine described: **treat ${owner_name ? `${owner_name}'s` : "the"} IRA as your own**. This option is uniquely available to surviving spouses.
+
+Three sub-paths exist:
+
+**Path A — Internal transfer instruction.** Move the assets into an existing IRA you already hold at this provider. You direct the instruction; the provider executes the transfer.
+
+**Path B — New own IRA.** Establish a new IRA in your own name with the inherited assets. The provider opens the account and completes the transfer.
+
+**External transfer.** Move the assets to an IRA you hold at a different institution. This session closes here; the receiving institution handles the inbound transfer per their own process.
+
+**Treat-as-own is a personal-planning decision.** Whether it is the right choice depends on factors specific to your situation. Your tax advisor is the right voice for that decision — not this system.
+
+To proceed:
+- Choose a treat-as-own path above, OR
+- Return to the inherited-IRA path (acknowledge the distribution requirements shown in the engine report), OR
+- Pause and come back after talking with your advisor.`,
+    bullets: [
+      "Path A — internal transfer to existing own IRA",
+      "Path B — new own IRA established",
+      "External transfer — moves to a different institution; session closes",
+      "Personal decision — consult your tax advisor"
+    ]
+  }),
 
   withdrawal_wrap: ({ withdrawal_type, beneficiary_name, ira_balance }) => {
     const typeLabel = {
